@@ -81,7 +81,7 @@ textarea{width:100%;height:120px;background:#0b1220;color:var(--ink);border:1px 
 </head>
 <body>
 <header id="top">
-  <div class="brand">Upper Kissimmee Water Watch<span>Shingle · Boggy · Reedy → Lake Hatchineha</span></div>
+  <div class="brand">Upper Kissimmee Water Watch<span id="srcStatus">Shingle · Boggy · Reedy → Lake Hatchineha</span></div>
   <div class="tl">
     <button id="btnPlay" title="Play / pause loop">▶</button>
     <input type="range" id="slider" min="0" max="0" value="0">
@@ -325,6 +325,7 @@ const $ = s=>document.querySelector(s);
 const logEl = $('#log');
 function log(msg,cls){const d=document.createElement('div');if(cls)d.className=cls;d.textContent=new Date().toLocaleTimeString()+'  '+msg;logEl.prepend(d)}
 function toast(m,ms=2500){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.display='none',ms)}
+const _st={};function status(k,txt,bad){_st[k]={txt,bad};const el=$('#srcStatus');if(el)el.innerHTML=Object.values(_st).map(x=>`<span style="color:${x.bad?'#fca5a5':'#86efac'}">${esc(x.txt)}</span>`).join(' · ')}
 function prog(f){$('#prog').style.width=(f>=1||f<=0?0:f*100)+'%'}
 const TZ='America/New_York';
 const fmtT = t=>new Date(t).toLocaleString('en-US',{timeZone:TZ,month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
@@ -497,19 +498,22 @@ async function loadNew(){
   const cutoff=Date.now()-30*864e5, want=[];
   for(const f of latest){const p=f.properties||{};if(!WANT.has(p.parameter_code))continue;const t=Date.parse(p.time);if(!(t>cutoff))continue;
     const c=f.geometry&&f.geometry.coordinates;const s=getSite(p.monitoring_location_id,{lat:c?c[1]:null,lon:c?c[0]:null});
-    want.push([s.id,p.parameter_code,p.unit_of_measure])}
+    want.push([s.id,p.parameter_code,p.unit_of_measure,p.time_series_id])}
   log(`Water Data API: ${want.length} active series in area`,'ok');
   try{const locs=await newPaged('/collections/monitoring-locations/items',{bbox:bb,limit:10000,skipGeometry:'true'},8);
     for(const f of locs){const id=f.id||f.properties?.id;if(!sites[id])continue;const p=f.properties||{};
       getSite(id,{name:p.monitoring_location_name,cty:p.county_code,alt:p.altitude!=null?+p.altitude:null,vd:p.vertical_datum||p.altitude_datum||p.vertical_datum_name})}
   }catch(e){log('monitoring-locations: '+e.message,'err')}
-  const dur=`P${cfg.win}D`;
-  let limited=false;
-  await pool(want,4,async([id,pc,unit])=>{
-    if(limited)return;
-    let feats;try{feats=await newPaged('/collections/continuous/items',{monitoring_location_id:id,parameter_code:pc,time:dur,properties:'time,value',skipGeometry:'true',limit:50000},4)}catch(e){if(/429/.test(e.message)){limited=true;log('USGS Water Data API rate limit reached (HTTP 429). Add a free api.data.gov key in Settings.','err')}throw e}
-    addSeries(sites[id],pc,unit,feats.map(f=>[Date.parse(f.properties.time),parseFloat(f.properties.value)]).filter(p=>isFinite(p[1])&&isFinite(p[0])));
-  });
+  // One area query per parameter (paged) instead of one request per gauge – stays well inside the rate limit.
+  const dur=`P${cfg.win}D`, tsKeep={}, unit={};for(const [id,pc,u,ts] of want){tsKeep[id+'|'+pc]=ts;unit[pc]=u}
+  const pcs=[...new Set(want.map(w=>w[1]))];
+  for(const pc of pcs){
+    const feats=await newPaged('/collections/continuous/items',{bbox:bb,parameter_code:pc,time:dur,properties:'monitoring_location_id,time_series_id,time,value',skipGeometry:'true',limit:50000},12);
+    const by={};for(const f of feats){const q=f.properties;const k=q.monitoring_location_id+'|'+pc;if(!(k in tsKeep))continue;if(tsKeep[k]&&q.time_series_id&&q.time_series_id!==tsKeep[k])continue;
+      const v=parseFloat(q.value),t=Date.parse(q.time);if(isFinite(v)&&isFinite(t))(by[q.monitoring_location_id]=by[q.monitoring_location_id]||[]).push([t,v])}
+    for(const [id,pts] of Object.entries(by))if(sites[id])addSeries(sites[id],pc,unit[pc],pts);
+    log(`Water Data API ${pc}: ${feats.length} values, ${Object.keys(by).length} gauges`,'ok');
+  }
 }
 async function loadLegacy(){
   const bb=cfg.bbox.map(x=>(+x).toFixed(5)).join(',');
@@ -936,8 +940,15 @@ let refTimer=null, refLoaded=false;
 async function loadAll(full){
   stop();buildFrames();setRainTot();
   toast('Loading gauges…',6000);
-  try{await loadUSGS()}catch(e){log('USGS load failed: '+e.message,'err');toast('USGS data unavailable – see Log tab',5000)}
-  if(cfg.ly.sfwmd){toast('Loading SFWMD structures (30 days)…',8000);try{await loadSFWMD_data()}catch(e){log('SFWMD DBHYDRO: '+e.message,'err')}}
+  const prev=sites;let usgsN=0;
+  try{await loadUSGS();usgsN=Object.values(sites).filter(s=>Object.keys(s.series).length).length}catch(e){log('USGS load failed: '+e.message,'err')}
+  if(!usgsN){const keep=Object.values(prev).filter(s=>s.id.startsWith('USGS-')&&Object.keys(s.series).length);
+    sites={};keep.forEach(s=>sites[s.id]=s);usgsN=keep.length;
+    status('usgs',keep.length?`USGS: refresh failed, showing previous data (${keep.length})`:'USGS: unavailable – see Log',!keep.length);
+    toast(keep.length?'USGS refresh failed – keeping previous data':'USGS data unavailable – see Log tab',5000)}
+  else status('usgs',`USGS ✓ ${usgsN} gauges`);
+  buildMarkers();renderTables();showFrame(frames.length-1);   // show USGS right away
+  if(cfg.ly.sfwmd){status('sfwmd','SFWMD loading…');try{await loadSFWMD_data();status('sfwmd',`SFWMD ✓ ${Object.values(sites).filter(s=>s.kind==='sfwmd').length} sites`)}catch(e){log('SFWMD DBHYDRO: '+e.message,'err');status('sfwmd','SFWMD: unavailable',true)}}
   const n=Object.values(sites).filter(s=>kindOf(s)).length;log(`Gauges with data: ${n}`,'ok');
   await loadNWS();
   buildMarkers();renderTables();showFrame(frames.length-1);
