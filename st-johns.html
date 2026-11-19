@@ -417,6 +417,7 @@ function defaultsFor(s,t){if(!lakeGauge(s))return null;const k=schedKey(lakeText
 function nwsShift(s,pc){
   if(s._ghs!==undefined)return s._ghs;let r=null;const n=nws[s.id];
   if(pc==='00065')r=0;
+  else if(n&&n.obs!=null&&Math.abs(s.series[pc].pts.at(-1)[1]-n.obs)<0.3)r=0;
   else if(s.series['00065']){const P=s.series[pc].pts,d=[];for(let i=0;i<P.length;i+=Math.max(1,Math.floor(P.length/60))){const g=valueAt(s.series['00065'].pts,P[i][0]);if(g&&Math.abs(g[0]-P[i][0])<3600e3)d.push(P[i][1]-g[1])}
     if(d.length){d.sort((a,b)=>a-b);r=+d[Math.floor(d.length/2)].toFixed(3)}}
   else if(n&&n.obs!=null){const last=s.series[pc].pts.at(-1)[1];if(Math.abs(last-n.obs)<0.75)r=0}
@@ -584,7 +585,7 @@ async function loadNWS(){
       const c=(d.flood&&d.flood.categories)||{};const th={};for(const k of ['action','minor','moderate','major']){const st=c[k]&&c[k].stage;if(st!=null&&st>-9000)th[k]=+st}
       let sid=d.usgsId?'USGS-'+d.usgsId:null;
       if(!sid||!sites[sid]){let best=null,bd=1e9;for(const s of Object.values(sites)){if(s.lat==null)continue;const dd=Math.hypot(s.lat-g.latitude,(s.lon-g.longitude)*0.88);if(dd<bd){bd=dd;best=s}}if(best&&bd<0.004)sid=best.id}
-      let navd=null;if(/MHHW/i.test(g.name||'')){const dv=(((d.datums||{}).vertical||{}).value||[]).find(x=>/NAVD/i.test(x.abbrev||''));if(!dv||!isFinite(+dv.value))return;navd=+dv.value;
+      let navd=null;if(/MHHW/i.test(g.name||'')){const dv=(((d.datums||{}).vertical||{}).value||[]).find(x=>/NAVD/i.test(x.abbrev||''));if(!dv||!isFinite(+dv.value)||+dv.value===0)return;navd=+dv.value;
         if(sid&&!d.usgsId){let best=null,bd=1e9;for(const s of Object.values(sites)){if(s.lat==null)continue;const dd=Math.hypot(s.lat-g.latitude,(s.lon-g.longitude)*0.88);if(dd<bd){bd=dd;best=s}}sid=best&&bd<0.012?best.id:null}
         if(!sid){let best=null,bd=1e9;for(const s of Object.values(sites)){if(s.lat==null)continue;const dd=Math.hypot(s.lat-g.latitude,(s.lon-g.longitude)*0.88);if(dd<bd){bd=dd;best=s}}if(best&&bd<0.012)sid=best.id}
         if(sid&&nws[sid])return; // already have this point
