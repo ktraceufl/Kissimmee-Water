@@ -295,23 +295,23 @@ const LAKE_LABELS=[
  {n:'Cypress Lake',lat:28.0810,lon:-81.3243,k:'KCH',fis:'CYPRESS LAKE'},
  {n:'Lake Hatchineha',lat:28.0239,lon:-81.4130,k:'KCH',fis:'LAKE HATCHINEHA'},
  {n:'Lake Kissimmee',lat:27.9001,lon:-81.2665,k:'KCH',fis:'LAKE KISSIMMEE'},
- {n:'Tiger Lake',lat:27.8932,lon:-81.3583,k:'KCH',fis:'TIGER LAKE'},
+ {minor:1,n:'Tiger Lake',lat:27.8932,lon:-81.3583,k:'KCH',fis:'TIGER LAKE'},
  {n:'Lake Russell',lat:28.1337,lon:-81.4166,k:null,fis:'LAKE RUSSELL'},
  {n:'Alligator Lake',lat:28.2121,lon:-81.2014,k:'ALLI',fis:'ALLIGATOR LAKE'},
- {n:'Brick Lake',lat:28.1693,lon:-81.1940,k:'ALLI',fis:'BRICK LAKE'},
- {n:'Lake Lizzie',lat:28.2464,lon:-81.1868,k:'ALLI',fis:'LAKE LIZZIE'},
- {n:'Coon Lake',lat:28.2666,lon:-81.1831,k:'ALLI',fis:'COON LAKE'},
- {n:'Lake Center',lat:28.2780,lon:-81.1912,k:'ALLI',fis:'LAKE CENTER'},
- {n:'Trout Lake',lat:28.2587,lon:-81.1693,k:'ALLI',fis:'TROUT LAKE'},
+ {minor:1,n:'Brick Lake',lat:28.1693,lon:-81.1940,k:'ALLI',fis:'BRICK LAKE'},
+ {minor:1,n:'Lake Lizzie',lat:28.2464,lon:-81.1868,k:'ALLI',fis:'LAKE LIZZIE'},
+ {minor:1,n:'Coon Lake',lat:28.2666,lon:-81.1831,k:'ALLI',fis:'COON LAKE'},
+ {minor:1,n:'Lake Center',lat:28.2780,lon:-81.1912,k:'ALLI',fis:'LAKE CENTER'},
+ {minor:1,n:'Trout Lake',lat:28.2587,lon:-81.1693,k:'ALLI',fis:'TROUT LAKE'},
  {n:'Lake Gentry',lat:28.1396,lon:-81.2435,k:'GENTRY',fis:'LAKE GENTRY'},
- {n:'Lake Runnymede',lat:28.2587,lon:-81.2548,k:'ETOHO',fis:'LAKE RUNNYMEDE'},
- {n:'Lake Joel',lat:28.2925,lon:-81.1556,k:'MYRTLE',fis:'LAKE JOEL'},
- {n:'Lake Myrtle',lat:28.3138,lon:-81.1643,k:'MYRTLE',fis:'LAKE MYRTLE'},
- {n:'Lake Preston',lat:28.3113,lon:-81.1398,k:'MYRTLE',fis:'LAKE PRESTON'},
+ {minor:1,n:'Lake Runnymede',lat:28.2587,lon:-81.2548,k:'ETOHO',fis:'LAKE RUNNYMEDE'},
+ {minor:1,n:'Lake Joel',lat:28.2925,lon:-81.1556,k:'MYRTLE',fis:'LAKE JOEL'},
+ {minor:1,n:'Lake Myrtle',lat:28.3138,lon:-81.1643,k:'MYRTLE',fis:'LAKE MYRTLE'},
+ {minor:1,n:'Lake Preston',lat:28.3113,lon:-81.1398,k:'MYRTLE',fis:'LAKE PRESTON'},
  {n:'Lake Hart',lat:28.3800,lon:-81.2250,k:'HART',fis:'LAKE HART'},
- {n:'Lake Mary Jane',lat:28.3790,lon:-81.1800,k:'HART',fis:'LAKE MARY JANE'},
+ {minor:1,n:'Lake Mary Jane',lat:28.3790,lon:-81.1800,k:'HART',fis:'LAKE MARY JANE'},
  {n:'Lake Marian',lat:27.8805,lon:-81.1009,k:null,fis:'LAKE MARIAN'},
- {n:'Lake Rosalie',lat:27.9341,lon:-81.4024,k:null,fis:'LAKE ROSALIE'},
+ {minor:1,n:'Lake Rosalie',lat:27.9341,lon:-81.4024,k:null,fis:'LAKE ROSALIE'},
  {n:'Lake Marion',lat:28.0804,lon:-81.5321,k:null,fis:'LAKE MARION'},
  {n:'Lake Butler',lat:28.4872,lon:-81.5503,k:null,fis:'LAKE BUTLER'}];
 
@@ -517,7 +517,7 @@ async function loadNew(){
 }
 async function loadLegacy(){
   const bb=cfg.bbox.map(x=>(+x).toFixed(5)).join(',');
-  const j=await getJSON(`https://waterservices.usgs.gov/nwis/iv/?format=json&bBox=${bb}&parameterCd=${[...WANT].join(',')}&period=P${Math.min(cfg.win,120)}D&siteStatus=active`,{timeout:90000});
+  const j=await getJSON(`https://waterservices.usgs.gov/nwis/iv/?format=json&bBox=${bb}&parameterCd=${[...WANT].filter(c=>/^\d{5}$/.test(c)).join(',')}&period=P${Math.min(cfg.win,120)}D&siteStatus=active`,{timeout:90000});
   let n=0;
   for(const ts of (j.value&&j.value.timeSeries)||[]){
     const si=ts.sourceInfo, no=si.siteCode[0].value, g=si.geoLocation.geogLocation;
@@ -683,8 +683,9 @@ const lakeLayer=L.layerGroup();
 function lakeSites(lab){const key=lab.fis.split(' ').filter(w=>w.length>3&&!/LAKE/.test(w))[0]||lab.fis;
   return Object.values(sites).filter(s=>primary(s)&&lakeGauge(s)&&schedKey(lakeText(s))===lab.k&&new RegExp(key,'i').test(lakeText(s)))
     .sort((a,b)=>(b.kind==='sfwmd')-(a.kind==='sfwmd'))}
+const MINOR_ZOOM=12; // small lakes' labels only when zoomed in, so the big-lake labels stay readable
 function buildLakeLabels(){lakeLayer.clearLayers();
-  for(const lab of LAKE_LABELS){const m=L.marker([lab.lat,lab.lon],{icon:L.divIcon({className:'',html:`<div class="lakelbl">${esc(lab.n)}</div>`,iconSize:null,iconAnchor:[0,12]}),zIndexOffset:1000});
+  for(const lab of LAKE_LABELS){if(lab.minor&&map.getZoom()<MINOR_ZOOM)continue;const m=L.marker([lab.lat,lab.lon],{icon:L.divIcon({className:'',html:`<div class="lakelbl">${esc(lab.n)}</div>`,iconSize:null,iconAnchor:[0,12]}),zIndexOffset:1000});
     m.on('click',()=>openSchedule(lab));lakeLayer.addLayer(m)}}
 const lakeFsLayer=L.layerGroup();const firmBFE={};
 function lakeFIS(lab){return fisFor({kind:'usgs',id:'USGS-x',name:lab.fis,series:{}})}
@@ -696,7 +697,7 @@ async function loadFirmBFE(){ // FEMA NFHL effective FIRM AE zone static BFE at 
 }
 function lakeOff(lab){return /HART|MARY JANE/i.test(lab.fis)?1.02:/ROSALIE|MARION|TIGER/i.test(lab.fis)?0.959:/BUTLER|NONA|BAY LAKE/i.test(lab.fis)?0.88:0.9}
 function buildLakeFS(){lakeFsLayer.clearLayers();
-  for(const lab of LAKE_LABELS){const f=lakeFIS(lab),fr=firmBFE[lab.n],o=lakeOff(lab);
+  for(const lab of LAKE_LABELS){if(lab.minor&&map.getZoom()<MINOR_ZOOM)continue;const f=lakeFIS(lab),fr=firmBFE[lab.n],o=lakeOff(lab);
     const v=f&&f.y100!=null?f.y100:(fr&&fr.bfe!=null&&/NAVD/.test(fr.datum)?fr.bfe:null);if(v==null&&!fr)continue;
     const txt=v!=null?`100-yr ${f2(conv(v,'NAVD88',cfg.datum,o))}`:`Zone ${fr.zone}, no BFE`;
     const m=L.marker([lab.lat,lab.lon],{icon:L.divIcon({className:'',html:`<div class="fslbl">${txt}</div>`,iconSize:null,iconAnchor:[0,-12]}),zIndexOffset:900});
@@ -956,6 +957,7 @@ async function loadAll(full){
   loadRain().catch(e=>log('Rain: '+e.message,'err'));
   clearInterval(refTimer);if(+cfg.refresh>0)refTimer=setInterval(()=>{if(!playing&&cur===frames.length-1)loadAll(false)},cfg.refresh*60e3);
 }
+let _lz=map.getZoom();map.on('zoomend',()=>{const z=map.getZoom();if((z<MINOR_ZOOM)!==(_lz<MINOR_ZOOM)){buildLakeLabels();buildLakeFS()}_lz=z});
 renderLegend();buildLakeLabels();if(cfg.ly.lakes)lakeLayer.addTo(map);buildLakeFS();if(cfg.ly.lakefs)lakeFsLayer.addTo(map);loadFirmBFE().catch(e=>log('FEMA NFHL lake BFE: '+e.message,'err'));
 loadAll(true);
 </script>
