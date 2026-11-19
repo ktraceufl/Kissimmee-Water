@@ -423,7 +423,8 @@ function thresholdsRaw(s,when){
   for(const k of ['y10','y25','y50','y100','y500']){let v=null;
     if(t[k]!=null&&t[k]!=='')v=thToRaw(s,pc,t[k],d); else if(fis&&fis[k]!=null)v=thToRaw(s,pc,fis[k],'NAVD88');
     if(v!=null)out.push([k,v])}
-  const n=nws[s.id]; if(n){const sh=nwsShift(s,pc);if(sh!=null)for(const k of ['action','minor','moderate','major'])if(n[k]!=null)out.push([k,n[k]+sh])}
+  const n=nws[s.id]; if(n&&n.navd!=null){for(const k of ['action','minor','moderate','major'])if(n[k]!=null){const v=thToRaw(s,pc,n[k],'NAVD88');if(v!=null)out.push([k,v])}}
+  else if(n){const sh=nwsShift(s,pc);if(sh!=null)for(const k of ['action','minor','moderate','major'])if(n[k]!=null)out.push([k,n[k]+sh])}
   return out.sort((a,b)=>a[1]-b[1]);
 }
 function statusOf(s,v,when){
@@ -574,9 +575,13 @@ async function loadNWS(){
       const c=(d.flood&&d.flood.categories)||{};const th={};for(const k of ['action','minor','moderate','major']){const st=c[k]&&c[k].stage;if(st!=null&&st>-9000)th[k]=+st}
       let sid=d.usgsId?'USGS-'+d.usgsId:null;
       if(!sid||!sites[sid]){let best=null,bd=1e9;for(const s of Object.values(sites)){if(s.lat==null)continue;const dd=Math.hypot(s.lat-g.latitude,(s.lon-g.longitude)*0.88);if(dd<bd){bd=dd;best=s}}if(best&&bd<0.004)sid=best.id}
-      if(/MHHW/i.test(g.name||'')||/MHHW/i.test(JSON.stringify(d.datums||'')))return; // tidal-datum duplicates
+      let navd=null;if(/MHHW/i.test(g.name||'')){const dv=(((d.datums||{}).vertical||{}).value||[]).find(x=>/NAVD/i.test(x.abbrev||''));if(!dv||!isFinite(+dv.value))return;navd=+dv.value;
+        if(sid&&!d.usgsId){let best=null,bd=1e9;for(const s of Object.values(sites)){if(s.lat==null)continue;const dd=Math.hypot(s.lat-g.latitude,(s.lon-g.longitude)*0.88);if(dd<bd){bd=dd;best=s}}sid=best&&bd<0.012?best.id:null}
+        if(!sid){let best=null,bd=1e9;for(const s of Object.values(sites)){if(s.lat==null)continue;const dd=Math.hypot(s.lat-g.latitude,(s.lon-g.longitude)*0.88);if(dd<bd){bd=dd;best=s}}if(best&&bd<0.012)sid=best.id}
+        if(sid&&nws[sid])return; // already have this point
+        for(const k in th)th[k]=+(th[k]+navd).toFixed(2)}
       const ob=d.status&&d.status.observed;
-      if(sid&&Object.keys(th).length){nws[sid]=Object.assign(th,{lid:g.lid,obs:ob&&ob.primary>-900?+ob.primary:null});if(sites[sid])delete sites[sid]._ghs}
+      if(sid&&Object.keys(th).length){nws[sid]=Object.assign(th,{lid:g.lid,navd,obs:ob&&ob.primary>-900?+ob.primary+(navd||0):null});if(sites[sid])delete sites[sid]._ghs}
       if(!sid){let near=false;for(const s of Object.values(sites)){if(s.lat!=null&&Math.hypot(s.lat-g.latitude,(s.lon-g.longitude)*0.88)<0.06){near=true;break}}if(!near)return}
       const obs=g.status&&g.status.observed||{};
       const col={major:'#a21caf',moderate:'#dc2626',minor:'#f97316',action:'#f59e0b'}[(obs.floodCategory||'').toLowerCase()]||'#94a3b8';
@@ -667,8 +672,8 @@ function openGaugePopup(id){
   const q=s.series['00060']&&s.series['00060'].pts.at(-1);
   const w10=pc?s.series[pc].pts.filter(p=>p[0]>=t0):[];const vals=w10.map(p=>rawToElev(s,pc,p[1])??p[1]);
   const chg=vals.length>1?vals.at(-1)-vals[0]:null;
-  const html=`<b>${esc(s.name)}</b><div class="small">${s.kind==='sfwmd'?'SFWMD '+esc(s.code):'USGS '+esc(s.no)}${s.datumAssumed?' · datum assumed NGVD29':''}</div>
-   <div style="margin:4px 0">${pc?`<b style="font-size:16px">${f2(el??last[1])}</b> ft ${el!=null?cfg.datum:'(gage ht)'} ${st?`<span class="chip" style="background:${st.c}">${st.l}</span>`:''}`:''}
+  const html=`<b>${esc(s.name)}</b><div class="small">${s.kind==='sfwmd'?'SFWMD '+esc(s.code):'USGS '+esc(s.no)}${s.datumAssumed?' · '+esc(s.datumNote||'datum assumed NGVD29'):''}</div>
+   <div style="margin:4px 0">${pc?`<b style="font-size:16px">${f2(el??last[1])}</b> ft ${el!=null?cfg.datum:'gage height – USGS has not published this gauge\'s datum, so it can\'t be shown as an elevation'} ${st?`<span class="chip" style="background:${st.c}">${st.l}</span>`:''}`:''}
    ${q?` · <b>${Math.round(q[1]).toLocaleString()}</b> cfs`:''}</div>
    ${vals.length?`<div class="small">10-day range ${f2(Math.min(...vals))} – ${f2(Math.max(...vals))} · net change ${chg>0?'+':''}${f2(chg)} ft</div>`:'<div class="small">No elevation record – flow only.</div>'}
    <div style="height:200px;margin-top:4px"><canvas id="gCv"></canvas></div>
@@ -746,7 +751,7 @@ function renderMarkers(){
     let label='',tip='',dir='right',off=[8,0];
     if(k==='elev'){const pc=primary(s),p=valueAt(s.series[pc].pts,t),v=p&&p[1];const st=statusOf(s,v,t);
       m.setStyle({fillColor:v==null?'#334155':st.c});
-      const el=rawToElev(s,pc,v);label=v==null?'—':(el!=null?f2(el):f2(v)+' gh');
+      const el=rawToElev(s,pc,v);label=v==null?'—':(el!=null?f2(el):f2(v)+' gh?');
       const tw=s.series.SFW_T&&valueAt(s.series.SFW_T.pts,t);
       tip=`${esc(s.name)}<br>${PDESC[pc]}: ${f2(v)} ft${el!=null?` → <b>${f2(el)} ${cfg.datum}</b>`:''}${tw?`<br>Tailwater ${f2(rawToElev(s,'SFW_T',tw[1]))} ${cfg.datum}`:''}<br>${st?st.l:''}`;
       if(tw&&cfg.ly.labels)label+=` / TW ${f2(rawToElev(s,'SFW_T',tw[1]))}`}
@@ -839,7 +844,7 @@ function drawSide(s){
       <span>Regulation max ${df?`<span class="small">(default ${df.reg} NGVD29)</span>`:''}</span><input data-k="reg" value="${esc(t.reg??'')}" placeholder="${df?df.reg:''}">
       ${['y10','y25','y50','y100','y500'].map(k=>`<span>${SEV[k].l}</span><input data-k="${k}" value="${esc(t[k]??'')}" placeholder="${fis&&fis[k]!=null?fis[k]:''}">`).join('')}
       <span>Long-term mean (raw)</span><input data-k="meanRaw" value="${t.meanRaw!=null?(+t.meanRaw).toFixed(2):''}">
-      ${PDATUM[pc]?'':`<span>Gage datum elev <span class="small">(USGS: ${s.alt??'?'} ${esc(s.vd||'')}${s.datumAssumed?' – assumed: no USGS datum, readings are elevations':''})</span></span><input data-k="gd" value="${esc(t.gd??'')}" placeholder="${s.alt??''}">
+      ${PDATUM[pc]?'':`<span>Gage datum elev <span class="small">(USGS: ${s.alt??'?'} ${esc(s.vd||'')}${s.datumAssumed?' – assumed: '+esc(s.datumNote||'no USGS datum, readings are elevations'):''})</span></span><input data-k="gd" value="${esc(t.gd??'')}" placeholder="${s.alt??''}">
       <span>Gage datum is</span><select data-k="gdd"><option value="">(USGS)</option>${['NGVD29','NAVD88'].map(d=>`<option ${t.gdd===d?'selected':''}>${d}</option>`).join('')}</select>`}
       <span>Ignore built-in default</span><input type="checkbox" data-k="noDefault" ${t.noDefault?'checked':''}>
       </div><div style="margin-top:6px;display:flex;gap:6px"><button id="dSave" class="pri">Save</button><button id="dMean">Compute mean</button></div>
