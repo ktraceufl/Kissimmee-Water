@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>St. Johns River Water Watch</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--ink:#e5e7eb;--mute:#9ca3af;--line:#1f2937;--acc:#38bdf8;--chip:#1f2937}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;font:14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--ink);background:var(--bg)}
+#top{position:fixed;top:0;left:0;right:0;height:56px;display:flex;align-items:center;gap:10px;padding:0 10px;background:rgba(15,23,42,.96);border-bottom:1px solid var(--line);z-index:1000}
+.brand{font-weight:700;white-space:nowrap}
+.brand span{display:block;font-weight:400;font-size:11px;color:var(--mute)}
+.tl{flex:1;display:flex;align-items:center;gap:8px;min-width:0}
+.tl input[type=range]{flex:1;min-width:60px}
+#tlabel{font-variant-numeric:tabular-nums;font-size:12px;white-space:nowrap;min-width:120px;text-align:center}
+button,select,input{font:inherit;color:var(--ink);background:#1e293b;border:1px solid #334155;border-radius:6px;padding:5px 8px}
+button{cursor:pointer}button:hover{border-color:var(--acc)}
+button.pri{background:#0369a1;border-color:#0284c7}
+#map{position:fixed;top:56px;left:0;right:360px;bottom:0}
+#panel{position:fixed;top:56px;right:0;width:360px;bottom:0;background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;z-index:900}
+#tabs{display:flex;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+#tabs button{flex:1;border:0;border-radius:0;background:transparent;padding:9px 4px;font-size:12px;color:var(--mute)}
+#tabs button.on{color:var(--ink);box-shadow:inset 0 -2px 0 var(--acc)}
+.tab{display:none;overflow:auto;padding:10px;flex:1}.tab.on{display:block}
+h3{margin:14px 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--mute)}
+h3:first-child{margin-top:0}
+label.row{display:flex;align-items:center;gap:8px;padding:3px 0}
+.small{font-size:12px;color:var(--mute)}
+table{width:100%;border-collapse:collapse;font-size:12px}
+td,th{padding:4px 3px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{color:var(--mute);font-weight:600}
+td.n{text-align:right;font-variant-numeric:tabular-nums}
+tr.click{cursor:pointer}tr.click:hover{background:#1e293b}
+.chip{display:inline-block;padding:1px 6px;border-radius:9px;font-size:11px;color:#fff;white-space:nowrap}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:middle}
+#log{font:11px/1.4 ui-monospace,Menlo,monospace;white-space:pre-wrap;color:#cbd5e1}
+#log .err{color:#fca5a5}#log .ok{color:#86efac}
+#legend{position:fixed;left:10px;bottom:10px;max-height:60vh;overflow:auto;width:220px;background:rgba(17,24,39,.92);border:1px solid var(--line);border-radius:8px;padding:8px 10px;z-index:800;font-size:11px;max-width:220px}
+#legend div{margin:2px 0}
+.lakelbl{background:rgba(255,255,255,.85);color:#0c4a6e;border:1px solid #0369a1;border-radius:4px;padding:1px 6px;font:600 12px system-ui;white-space:nowrap;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+.lakelbl:hover{background:#e0f2fe}
+.ramp{display:flex;align-items:stretch;margin-top:3px}.ramp span{flex:1;height:10px}
+.rampl{display:flex;justify-content:space-between;font-size:9px;color:#cbd5e1}
+.schedpop .leaflet-popup-content{width:420px!important;max-width:80vw}
+.gpop .leaflet-popup-content{width:400px!important;max-width:82vw}
+#toast{position:fixed;left:50%;top:66px;transform:translateX(-50%);background:#0c4a6e;padding:6px 12px;border-radius:6px;z-index:2000;display:none;font-size:12px}
+#prog{height:3px;background:var(--acc);width:0;position:fixed;top:56px;left:0;z-index:1500;transition:width .2s}
+.lbl{background:rgba(15,23,42,.85)!important;color:#fff!important;border:0!important;box-shadow:none!important;font-size:11px!important;padding:1px 4px!important;border-radius:3px!important}
+.lbl:before{display:none}
+.lblq{color:#7dd3fc!important}
+.fslbl{background:#4c1d95;color:#fff;border:1px solid #c4b5fd;border-radius:4px;padding:1px 5px;font:600 11px system-ui;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.5)}
+.leaflet-popup-content{font-size:12px;max-width:300px}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#111827;color:var(--ink)}
+.leaflet-container a{color:var(--acc)}
+#detail{position:fixed;left:0;right:360px;bottom:0;height:46%;background:var(--panel);border-top:1px solid var(--line);z-index:950;display:none;flex-direction:column}
+#detail.on{display:flex}
+#detail header{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line)}
+#detail header b{flex:1}
+#dbody{flex:1;display:flex;gap:10px;padding:8px 10px;min-height:0}
+#dchart{flex:1;min-width:0;position:relative}
+#dside{width:300px;overflow:auto}
+#dside input{width:80px;padding:3px 5px}
+.grid2{display:grid;grid-template-columns:1fr auto;gap:4px 8px;align-items:center}
+textarea{width:100%;height:120px;background:#0b1220;color:var(--ink);border:1px solid #334155;border-radius:6px;font:11px ui-monospace,monospace}
+#btnPanel{display:none}
+@media (max-width:820px){
+ #map,#detail{right:0}
+ #panel{width:100%;transform:translateX(100%);transition:transform .2s}
+ #panel.open{transform:none}
+ #btnPanel{display:block}
+ .brand span{display:none}
+ #tlabel{min-width:0;font-size:11px}
+ #dbody{flex-direction:column;overflow:auto}#dchart{min-height:200px}#dside{width:auto}
+ #legend{display:none}
+}
+</style>
+</head>
+<body>
+<header id="top">
+  <div class="brand">St. Johns River Water Watch <a href="upper-kissimmee-water-watch.html" style="font-weight:400;font-size:11px;color:#7dd3fc;text-decoration:none">· Kissimmee map ↗</a><span id="srcStatus">Blue Cypress Lake → Mayport</span></div>
+  <div class="tl">
+    <button id="btnPlay" title="Play / pause loop">▶</button>
+    <input type="range" id="slider" min="0" max="0" value="0">
+    <span id="tlabel">loading…</span>
+    <select id="speed" title="Loop speed"><option value="600">Slow</option><option value="300" selected>Med</option><option value="120">Fast</option></select>
+    <button id="btnLive" title="Jump to latest">Now</button>
+  </div>
+  <button id="btnPanel">☰</button>
+</header>
+<div id="prog"></div>
+<div id="map"></div>
+
+<aside id="panel">
+  <div id="tabs">
+    <button data-t="layers" class="on">Layers</button>
+    <button data-t="gauges">Gauges</button>
+    <button data-t="rain">Rain</button>
+    <button data-t="flood">Flood levels</button>
+    <button data-t="settings">Settings</button>
+    <button data-t="logt">Log</button>
+  </div>
+
+  <section class="tab on" id="t-layers">
+    <h3>Base map</h3>
+    <div id="baseList"></div>
+    <h3>Water data</h3>
+    <label class="row"><input type="checkbox" id="ly-level" checked> Water-surface elevations (lakes, streams, structures)</label>
+    <label class="row"><input type="checkbox" id="ly-flow" checked> Flows, cfs (shown to the left of the gauge)</label>
+    <label class="row"><input type="checkbox" id="ly-usgs" checked> Include USGS gauges</label>
+    <label class="row" style="display:none"><input type="checkbox" id="ly-sfwmd"> SFWMD</label>
+    <label class="row"><input type="checkbox" id="ly-lakefs" checked> Lake 100-yr flood stage (FIS / FIRM AE) at lake center</label>
+    <label class="row"><input type="checkbox" id="ly-raing" checked> Rain gauges (USGS)</label>
+    <label class="row"><input type="checkbox" id="ly-nws"> NWS flood-forecast gauges</label>
+    <label class="row"><input type="checkbox" id="ly-labels" checked> Value labels on map</label>
+    <label class="row"><input type="checkbox" id="ly-lakes" checked> Lake names (click for regulation schedule)</label>
+    <h3>Weather</h3>
+    <label class="row"><input type="checkbox" id="ly-radar" checked> Radar loop (NEXRAD composite)</label>
+    <label class="row">Radar opacity <input type="range" id="radarOp" min="0.1" max="1" step="0.05" value="0.6"></label>
+    <label class="row">Rain total (MRMS, current) <select id="rainTot"><option value="">Off</option><option value="q2-n1p-900913">Past 1 hr</option><option value="q2-p24h-900913">Past 24 hr</option><option value="q2-p48h-900913">Past 48 hr</option><option value="q2-p72h-900913">Past 72 hr</option></select></label>
+    <h3>Reference</h3>
+    <label class="row"><input type="checkbox" id="ly-hydro"> USGS hydrography (streams/lakes)</label>
+    <label class="row"><input type="checkbox" id="ly-huc" checked> HUC-10 watersheds</label>
+    <label class="row" style="display:none"><input type="checkbox" id="ly-struct"> SFWMD</label>
+    <label class="row" style="display:none"><input type="checkbox" id="ly-dbhydro"> DBHYDRO</label>
+    <label class="row"><input type="checkbox" id="ly-fema"> FEMA flood zones (NFHL) – tap map for BFE</label>
+    <label class="row"><input type="checkbox" id="ly-quad"> 7.5′ quadrangle grid</label>
+    <p class="small">Radar and gauges move together on the timeline at the top. MRMS rain-total overlays show the current total only (not looped).</p>
+  </section>
+
+  <section class="tab" id="t-gauges">
+    <div class="small" id="gSummary"></div>
+    <table id="gTable"></table>
+  </section>
+
+  <section class="tab" id="t-rain">
+    <h3>Basin rainfall (MRMS daily, inches)</h3>
+    <div id="rainZones" class="small">Loading…</div>
+    <h3>USGS rain gauges (window total)</h3>
+    <div id="rainGauges" class="small"></div>
+    <p class="small">Basin values are MRMS radar/gauge daily estimates at a point near each basin's center, from Iowa Environmental Mesonet. The current "day" may be partial.</p>
+  </section>
+
+  <section class="tab" id="t-flood">
+    <p class="small">Flood levels for each gauge. The <b>Mean</b> is computed from the USGS daily record. <b>Reg max</b> is the SFWMD/USACE regulation-schedule high pool (pre-filled for the big lakes, NGVD29). <b>NWS</b> stages load automatically where NWS has a forecast point. The St. Johns and its lakes are mapped in the FIS as a riverine flood profile, so lake 100-yr values shown at lake centers come live from the effective FIRM (FEMA NFHL). Enter 10/25/50/100-yr profile elevations at a gauge from the county FIS (Indian River, Brevard, Orange, Seminole, Volusia, Lake, Marion, Putnam, Flagler, St. Johns, Clay, Duval). Tap a gauge to edit. Values are saved in this browser.</p>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0">
+      <button id="btnMeans" class="pri">Compute long-term means</button>
+      <button id="btnExport">Export</button>
+      <button id="btnImport">Import</button>
+    </div>
+    <textarea id="ioBox" style="display:none" placeholder="Paste exported JSON here, then press Import again"></textarea>
+    <table id="fTable"></table>
+  </section>
+
+  <section class="tab" id="t-settings">
+    <h3>Time window</h3>
+    <label class="row">Show the last <select id="setWin"><option value="1">1 day</option><option value="3">3 days</option><option value="7">7 days</option><option value="14">14 days</option><option value="30" selected>30 days</option><option value="60">60 days</option></select></label>
+    <label class="row">Loop frame step <select id="setStep"><option value="0">Auto</option><option value="5">5 min</option><option value="15">15 min</option><option value="30">30 min</option><option value="60">1 hr</option><option value="120">2 hr</option><option value="180" selected>3 hr</option><option value="360">6 hr</option></select></label>
+    <label class="row">Max loop frames <input id="setFrames" type="number" min="12" max="400" value="300" style="width:70px"></label>
+    <label class="row">Auto-refresh (min, 0 = off) <input id="setRefresh" type="number" min="0" max="120" value="30" style="width:70px"></label>
+    <h3>Elevations</h3>
+    <label class="row">Display datum <select id="setDatum"><option>NAVD88</option><option>NGVD29</option></select></label>
+    <label class="row">Fallback NGVD29 − NAVD88 offset (ft) <input id="setOff" type="number" step="0.01" value="0.90" style="width:80px"></label>
+    <p class="small">Each gauge uses its own offset: SFWMD's site-specific value when available (e.g. S-61 = 1.05), otherwise the FIS factor (Osceola +0.90 county avg; Orange by watershed – Shingle 0.91, Boggy 0.96, Reedy 0.88, Lake Hart 1.02; Polk 0.959). Override per gauge in its panel. FIS and SFWMD values are NAVD88; USGS lake gauges report NGVD29.</p>
+    <h3>Data source</h3>
+    <label class="row">USGS feed <select id="setSrc"><option value="auto">Auto (Water Data API, then legacy)</option><option value="new">Water Data API only</option><option value="legacy">Legacy WaterServices only</option></select></label>
+    <label class="row">api.data.gov key (optional) <input id="setKey" type="text" style="width:150px" placeholder="raises rate limit"></label>
+    <p class="small">The new USGS API limits how many requests you can make per hour unless you add a free key from api.data.gov/signup. Legacy WaterServices shuts down Feb 22, 2027.</p>
+    <h3>Area (lon/lat bounding box)</h3>
+    <input id="setBox" type="text" style="width:100%">
+    <div style="margin-top:10px;display:flex;gap:6px"><button id="btnApply" class="pri">Apply &amp; reload</button><button id="btnReset">Reset</button></div>
+  </section>
+
+  <section class="tab" id="t-logt"><div id="log"></div></section>
+</aside>
+
+<div id="detail">
+  <header><b id="dTitle"></b><a id="dLink" target="_blank" rel="noopener">USGS page</a><button id="dClose">✕</button></header>
+  <div id="dbody"><div id="dchart"><canvas id="dcv"></canvas></div><div id="dside"></div></div>
+</div>
+<div id="legend"></div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* ================= configuration ================= */
+const DEF = {bbox:[-82.10,27.50,-80.60,30.50], win:14, step:180, frames:300, refresh:30, datum:'NAVD88', off:1.00, src:'auto', key:'', base:'usgstopo', sfwmd:0,
+  ly:{lakefs:1,usgs:1,lakes:1,level:1,flow:1,raing:1,sfwmd:0,nws:1,labels:1,radar:1,hydro:0,huc:0,struct:0,dbhydro:0,fema:0,quad:0}, radarOp:0.6, rainTot:''};
+const HUCS='03080101,03080102,03080103'; // Upper St. Johns, Oklawaha, Lower St. Johns
+const store = {
+  get(k,d){try{const v=localStorage.getItem('sjrw.'+k);return v?JSON.parse(v):d}catch(e){return d}},
+  set(k,v){try{localStorage.setItem('sjrw.'+k,JSON.stringify(v))}catch(e){}}
+};
+let cfg = Object.assign({}, DEF, store.get('cfg2',{})); cfg.ly = Object.assign({}, DEF.ly, cfg.ly||{});
+let TH = store.get('thresholds', {});   // per site id user thresholds
+const LEVEL_CODES = ['SFW_H','62614','63158','62615','63160','00065'];
+const PDESC = {'SFW_H':'Stage (SFWMD, NAVD88)','SFW_T':'Tailwater (SFWMD, NAVD88)','62614':'Lake elev (NGVD29)','63158':'Water elev (NGVD29)','62615':'Lake elev (NAVD88)','63160':'Water elev (NAVD88)','00065':'Gage height','00060':'Discharge','00045':'Precipitation','GATE':'Gate opening'};
+const PDATUM = {'SFW_H':'NAVD88','SFW_T':'NAVD88','62614':'NGVD29','63158':'NGVD29','62615':'NAVD88','63160':'NAVD88'};
+/* NGVD29 − NAVD88 offsets (ft) published in the effective FIS reports.
+   Osceola 12097CV000A: county average +0.9.  Orange 12095CV000C Table 6: Shingle 0.91, Boggy 0.96, Reedy 0.88, Lake Hart 1.02.
+   Polk 12105CV001C: county average 0.959.  SFWMD site-specific offsets are used for SFWMD stations when known. */
+// NGVD29 − NAVD88 (ft) from NOAA NCAT/VERTCON 3.0 at points along the basin; inverse-distance interpolation.
+const DATUM_PTS=[[27.73, -80.75, 1.339], [28.35, -80.99, 1.234], [28.75, -81.05, 1.024], [28.81, -81.27, 1.02], [29.0, -81.38, 1.152], [29.16, -81.53, 1.03], [29.28, -81.6, 1.122], [29.65, -81.62, 0.951], [29.2, -81.85, 1.001], [28.8, -81.85, 0.915], [28.62, -81.62, 0.896], [30.05, -81.85, 0.984], [30.32, -81.66, 1.086], [30.39, -81.43, 1.106], [28.73, -81.22, 1.037], [28.8, -81.42, 1.05], [28.14, -80.74, 1.339], [28.55, -81.17, 1.066], [28.76, -81.81, 0.922], [29.46, -81.49, 0.978], [29.46, -81.93, 0.899], [28.34, -80.83, 1.312], [28.82, -81.33, 1.033]];
+function offAt(lat,lon){if(lat==null)return +cfg.off||1;let w=0,v=0;for(const [la,lo,o] of DATUM_PTS){const d=Math.hypot(la-lat,(lo-lon)*0.88);if(d<0.005)return o;const k=1/(d*d);w+=k;v+=k*o}return v/w}
+function fisOffset(s){return +offAt(s.lat,s.lon).toFixed(3)}
+function siteOff(s){const t=TH[s.id]||{};if(t.off!=null&&t.off!=='')return +t.off;if(s.sfOff!=null)return s.sfOff;return fisOffset(s)}
+/* FEMA FIS lake stillwater elevations, ft NAVD88 [10%, 2%, 1%, 0.2%] (null = not published). 25-yr is interpolated (Gumbel) between 10 and 50-yr. */
+const FIS_LAKES = []; // St. Johns lakes are riverine in the FIS (flood profiles); lake BFEs come live from the effective FIRM (NFHL).
+// Structure headwater pools: which lake each SFWMD structure's headwater gauge sits on
+const STRUCT_LAKE={S59:'EAST LAKE TOHOPEKALIGA',S61:'LAKE TOHOPEKALIGA',S62:'LAKE HART',S57:'LAKE MYRTLE',S60:'ALLIGATOR LAKE',S63:'LAKE GENTRY',S65:'LAKE KISSIMMEE'};
+function lakeText(s){if(s.kind==='sfwmd'&&STRUCT_LAKE[s.code])return STRUCT_LAKE[s.code];return (s.name||'')+' '+(s.desc||'')}
+function fisFor(s){
+  if(!lakeGauge(s))return null;
+  const n=lakeText(s);
+  for(const f of FIS_LAKES)if(f.re.test(n)){const [a,c,d,e]=f.v;let b=null;if(a!=null&&c!=null)b=+(a+0.574*(c-a)).toFixed(1);return {y10:a,y25:b,y50:c,y100:d,y500:e,src:f.src}}
+  return null;
+}
+const WANT = new Set([...LEVEL_CODES,'00060','72137','00045']);
+const ZONES = [
+ {name:'Upper basin – Blue Cypress / Fellsmere',lat:27.73,lon:-80.75},
+ {name:'Lake Washington / Lake Poinsett',lat:28.25,lon:-80.85},
+ {name:'Econlockhatchee River',lat:28.55,lon:-81.17},
+ {name:'Lake Harney / Lake Jesup',lat:28.73,lon:-81.12},
+ {name:'Wekiva River',lat:28.75,lon:-81.45},
+ {name:'Lake Monroe / Sanford',lat:28.83,lon:-81.28},
+ {name:'DeLand / Lake Woodruff',lat:29.05,lon:-81.38},
+ {name:'Harris Chain / Upper Ocklawaha',lat:28.80,lon:-81.80},
+ {name:'Lower Ocklawaha / Rodman',lat:29.40,lon:-81.80},
+ {name:'Lake George / Astor',lat:29.25,lon:-81.60},
+ {name:'Palatka',lat:29.65,lon:-81.62},
+ {name:'Black Creek',lat:30.05,lon:-81.85},
+ {name:'Jacksonville / Mayport',lat:30.33,lon:-81.55}];
+// Regulation-schedule high pool (ft NGVD29). SFWMD Kissimmee Basin water supply plan App. I (lake ranges) and
+// Rule 40E-10 (Headwaters Revitalization lakes up to 54 ft NGVD29). Verify against current USACE schedules.
+const REG_DEFAULTS = [
+ {re:/EAST\s*(LAKE\s*)?TOHO|TOHOEE|\bE\.\s*(LAKE\s*)?TOHO/i, reg:58.0, src:'East Lake Toho regulation high pool (S-59), NGVD29'},
+ {re:/TOHOPEKALIGA|LAKE TOHO\b|TOHOW|S-?61[ _]?H/i, reg:55.0, src:'Lake Toho regulation high pool (S-61), NGVD29'},
+ {re:/CYPRESS LAKE|LAKE CYPRESS|LCYP|HATCH|LAKE KISSIMMEE|LKISS|LKIS5|S-?65[ _]?H/i, reg:54.0, src:'Headwaters Revitalization schedule max (S-65), NGVD29'}];
+
+/* Regulation schedules, ft NGVD29, [month, day, stage]. Built from the USACE Jacksonville District daily
+   situation reports (Kissimmee Basin Lake Regulation, data Nov 2025 – Nov 2026), i.e. the line actually in force,
+   including the KCH Headwaters Revitalization Schedule Increment 1 temporary deviation. Hart–Mary Jane is not
+   reported by USACE; it uses the SFWMD Rule 40E-10 S-62 table (Table 4-2). */
+const REG_SCHED = {}; // no regulated pools on the main stem
+function schedKey(txt){return null}
+function regAt(key,t){const sc=REG_SCHED[key];if(!sc)return null;const d=new Date(t),y=d.getFullYear();
+  const pts=sc.pts.map(([m,dd,v])=>[Date.UTC(y,m-1,dd,12),v]);const x=Date.UTC(y,d.getMonth(),d.getDate(),12);
+  for(let i=1;i<pts.length;i++){if(x<=pts[i][0]){const [x0,y0]=pts[i-1],[x1,y1]=pts[i];return x1===x0?y1:y0+(y1-y0)*(x-x0)/(x1-x0)}}return pts.at(-1)[1]}
+// clickable lake names (approximate lake centers)
+// Lake centers from OpenStreetMap (Nominatim). k = regulation schedule key, fis = FIS lake name.
+const LAKE_LABELS=[{"n": "Blue Cypress Lake", "lat": 27.7304, "lon": -80.752, "k": null, "fis": "BLUE CYPRESS LAKE"}, {"minor": 1, "n": "Lake Hell n Blazes", "lat": 28.0189, "lon": -80.7947, "k": null, "fis": "LAKE HELL N BLAZES"}, {"minor": 1, "n": "Sawgrass Lake", "lat": 28.0739, "lon": -80.7795, "k": null, "fis": "SAWGRASS LAKE"}, {"n": "Lake Washington", "lat": 28.142, "lon": -80.7442, "k": null, "fis": "LAKE WASHINGTON"}, {"minor": 1, "n": "Lake Winder", "lat": 28.2531, "lon": -80.8487, "k": null, "fis": "LAKE WINDER"}, {"n": "Lake Poinsett", "lat": 28.3371, "lon": -80.8292, "k": null, "fis": "LAKE POINSETT"}, {"minor": 1, "n": "Puzzle Lake", "lat": 28.6871, "lon": -81.0355, "k": null, "fis": "PUZZLE LAKE"}, {"n": "Lake Harney", "lat": 28.7549, "lon": -81.0615, "k": null, "fis": "LAKE HARNEY"}, {"n": "Lake Jesup", "lat": 28.7419, "lon": -81.2039, "k": null, "fis": "LAKE JESUP"}, {"n": "Lake Monroe", "lat": 28.8247, "lon": -81.327, "k": null, "fis": "LAKE MONROE"}, {"minor": 1, "n": "Lake Beresford", "lat": 28.9923, "lon": -81.3467, "k": null, "fis": "LAKE BERESFORD"}, {"minor": 1, "n": "Lake Woodruff", "lat": 29.097, "lon": -81.417, "k": null, "fis": "LAKE WOODRUFF"}, {"minor": 1, "n": "Lake Dexter", "lat": 29.1111, "lon": -81.4794, "k": null, "fis": "LAKE DEXTER"}, {"n": "Lake George", "lat": 29.2986, "lon": -81.5921, "k": null, "fis": "LAKE GEORGE"}, {"minor": 1, "n": "Crescent Lake", "lat": 29.4566, "lon": -81.4911, "k": null, "fis": "CRESCENT LAKE"}, {"n": "Lake Griffin", "lat": 28.8763, "lon": -81.8417, "k": null, "fis": "LAKE GRIFFIN"}, {"n": "Lake Harris", "lat": 28.7559, "lon": -81.8085, "k": null, "fis": "LAKE HARRIS"}, {"n": "Lake Eustis", "lat": 28.8426, "lon": -81.7268, "k": null, "fis": "LAKE EUSTIS"}, {"n": "Lake Apopka", "lat": 28.6196, "lon": -81.614, "k": null, "fis": "LAKE APOPKA"}, {"minor": 1, "n": "Lake Dora", "lat": 28.7897, "lon": -81.7063, "k": null, "fis": "LAKE DORA"}, {"n": "Rodman Reservoir", "lat": 29.4569, "lon": -81.9256, "k": null, "fis": "RODMAN RESERVOIR"}, {"minor": 1, "n": "Doctors Lake", "lat": 30.1311, "lon": -81.7371, "k": null, "fis": "DOCTORS LAKE"}];
+
+const SEV = {mean:{s:1,c:'#10b981',l:'Above mean'},reg:{s:2,c:'#eab308',l:'Above reg. max'},action:{s:3,c:'#f59e0b',l:'NWS action'},minor:{s:4,c:'#f97316',l:'NWS minor flood'},
+  y10:{s:5,c:'#ef4444',l:'10-yr (FIS)'},moderate:{s:6,c:'#dc2626',l:'NWS moderate'},y25:{s:7,c:'#b91c1c',l:'25-yr (interp.)'},y50:{s:8,c:'#be123c',l:'50-yr (FIS)'},
+  major:{s:9,c:'#a21caf',l:'NWS major'},y100:{s:10,c:'#7e22ce',l:'100-yr / BFE (FIS)'},y500:{s:11,c:'#4c1d95',l:'500-yr (FIS)'}};
+const BELOW = {c:'#3b82f6',l:'Below mean'}, NOREF={c:'#64748b',l:'No reference levels'};
+
+/* ================= utilities ================= */
+const $ = s=>document.querySelector(s);
+const logEl = $('#log');
+function log(msg,cls){const d=document.createElement('div');if(cls)d.className=cls;d.textContent=new Date().toLocaleTimeString()+'  '+msg;logEl.prepend(d)}
+function toast(m,ms=2500){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.display='none',ms)}
+const _st={};function status(k,txt,bad){_st[k]={txt,bad};const el=$('#srcStatus');if(el)el.innerHTML=Object.values(_st).map(x=>`<span style="color:${x.bad?'#fca5a5':'#86efac'}">${esc(x.txt)}</span>`).join(' · ')}
+function prog(f){$('#prog').style.width=(f>=1||f<=0?0:f*100)+'%'}
+const TZ='America/New_York';
+const fmtT = t=>new Date(t).toLocaleString('en-US',{timeZone:TZ,month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+const fmtD = t=>new Date(t).toLocaleDateString('en-US',{timeZone:TZ,month:'numeric',day:'numeric'});
+const f2 = v=>v==null||!isFinite(v)?'—':(+v).toFixed(2);
+const esc = s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function getJSON(url,opt={}){
+  const ctl=new AbortController(); const to=setTimeout(()=>ctl.abort(),opt.timeout||45000);
+  try{const r=await fetch(url,{signal:ctl.signal}); if(!r.ok) throw new Error('HTTP '+r.status); return opt.text? await r.text(): await r.json();}
+  finally{clearTimeout(to)}
+}
+async function pool(items,n,fn){let i=0,done=0;const out=[];await Promise.all(Array.from({length:Math.min(n,items.length)},async()=>{while(i<items.length){const k=i++;try{out[k]=await fn(items[k])}catch(e){out[k]=null}prog(++done/items.length)}}));prog(1);return out}
+function conv(v,from,to,o){if(v==null||from===to)return v;if(o==null)o=+cfg.off||0;if(from==='NGVD29'&&to==='NAVD88')return v-o;if(from==='NAVD88'&&to==='NGVD29')return v+o;return v}
+const EST_OFF=5*3600e3; // DBHYDRO timestamps are Eastern Standard Time year-round
+function parseSf(ts){const m=/(\d+)\/(\d+)\/(\d+)\s+(\d+):(\d+):?(\d*)/.exec(ts);if(!m)return NaN;return Date.UTC(+m[3],+m[1]-1,+m[2],+m[4],+m[5],+(m[6]||0))+EST_OFF}
+function dms(v){v=Math.abs(+v);const d=Math.floor(v/10000),m=Math.floor((v-d*10000)/100),s=v-d*10000-m*100;return d+m/60+s/3600}
+function valueAt(pts,t){ // last value at or before t (binary search)
+  if(!pts||!pts.length||t<pts[0][0])return null; let lo=0,hi=pts.length-1;
+  while(lo<hi){const m=(lo+hi+1)>>1; if(pts[m][0]<=t)lo=m; else hi=m-1}
+  return (t-pts[lo][0]>6*3600e3)?null:pts[lo];
+}
+function sumBetween(pts,a,b){let s=0;for(const p of pts){if(p[0]>a&&p[0]<=b)s+=p[1]}return s}
+
+/* ================= map & base layers ================= */
+const map = L.map('map',{zoomControl:true,preferCanvas:true}).fitBounds([[cfg.bbox[1],cfg.bbox[0]],[cfg.bbox[3],cfg.bbox[2]]]);
+map.createPane('radar').style.zIndex=350; map.createPane('ref').style.zIndex=380; map.createPane('fema').style.zIndex=360;
+const tnm = n=>`https://basemap.nationalmap.gov/arcgis/rest/services/${n}/MapServer/tile/{z}/{y}/{x}`;
+const BASES = {
+ usgstopo:{n:'USGS Topo (The National Map)',l:()=>L.tileLayer(tnm('USGSTopo'),{maxNativeZoom:16,maxZoom:19,attribution:'USGS The National Map'})},
+ quadscan:{n:'USGS 7.5′ quad scans (Esri USA Topo)',l:()=>L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/USA_Topo_Maps/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:15,maxZoom:19,attribution:'Esri, USGS'})},
+ imgtopo:{n:'USGS Imagery + Topo',l:()=>L.tileLayer(tnm('USGSImageryTopo'),{maxNativeZoom:16,maxZoom:19,attribution:'USGS'})},
+ img:{n:'USGS Imagery',l:()=>L.tileLayer(tnm('USGSImageryOnly'),{maxNativeZoom:16,maxZoom:19,attribution:'USGS'})},
+ relief:{n:'USGS Shaded Relief',l:()=>L.tileLayer(tnm('USGSShadedReliefOnly'),{maxNativeZoom:16,maxZoom:19,attribution:'USGS'})},
+ esritopo:{n:'Esri World Topo',l:()=>L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Esri'})},
+ osm:{n:'OpenStreetMap',l:()=>L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'})},
+ dark:{n:'Dark (CARTO)',l:()=>L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19,attribution:'© OSM © CARTO'})}};
+let baseLayer=null;
+function setBase(k){if(baseLayer)map.removeLayer(baseLayer);baseLayer=(BASES[k]||BASES.usgstopo).l().addTo(map);cfg.base=k;saveCfg()}
+$('#baseList').innerHTML=Object.entries(BASES).map(([k,b])=>`<label class="row"><input type="radio" name="base" value="${k}" ${k===cfg.base?'checked':''}> ${b.n}</label>`).join('');
+$('#baseList').addEventListener('change',e=>setBase(e.target.value));
+setBase(cfg.base);
+function saveCfg(){store.set('cfg2',cfg)}
+
+/* reference layers */
+const hydroLayer = L.tileLayer(tnm('USGSHydroCached'),{maxNativeZoom:16,maxZoom:19,pane:'ref',opacity:.9});
+const hucLayer = L.geoJSON(null,{pane:'ref',style:{color:'#22d3ee',weight:1.2,fill:true,fillOpacity:0.03,dashArray:'4 3'},
+  onEachFeature:(f,l)=>{const p=f.properties||{};l.bindTooltip(esc(p.name||p.NAME||'')+' <span style="opacity:.6">HUC '+esc(p.huc10||p.huc12||'')+'</span>',{sticky:true});
+    l.on('click',e=>{L.DomEvent.stopPropagation(e);basinRainPopup(e.latlng,p.name||p.NAME)})}});
+const structLayer = L.geoJSON(null,{pane:'ref',pointToLayer:(f,ll)=>L.marker(ll,{icon:L.divIcon({className:'',html:'<div style="width:11px;height:11px;background:#facc15;border:2px solid #111;transform:rotate(45deg)"></div>',iconSize:[11,11]})}),
+  onEachFeature:(f,l)=>l.bindPopup(attrPopup('SFWMD structure',f.properties,true))});
+const dbLayer = L.geoJSON(null,{pane:'ref',pointToLayer:(f,ll)=>L.circleMarker(ll,{radius:3,color:'#a78bfa',weight:1,fillOpacity:.8}),
+  onEachFeature:(f,l)=>l.bindPopup(attrPopup('DBHYDRO station',f.properties,true))});
+function attrPopup(title,p,db){
+  const keys=Object.keys(p||{}).filter(k=>p[k]!=null&&p[k]!==''&&!/^(OBJECTID|GLOBALID|SHAPE)/i.test(k)).slice(0,14);
+  const name=p.NAME||p.STATION||p.SITE||p.STRUCTURE_NAME||'';
+  const link=db&&name?`<br><a href="https://insights.sfwmd.gov/" target="_blank" rel="noopener">Open DBHYDRO Insights</a> – search “${esc(name)}” for stage &amp; flow`:'';
+  return `<b>${title}${name?': '+esc(name):''}</b><table>${keys.map(k=>`<tr><td>${esc(k)}</td><td>${esc(p[k])}</td></tr>`).join('')}</table>${link}`;
+}
+/* FEMA NFHL dynamic export overlay */
+const FEMA_URL='https://hazards.fema.gov/arcgis/rest/services/public/NFHL/MapServer';
+let femaOverlay=null;
+function refreshFema(){
+  if(!cfg.ly.fema){if(femaOverlay){map.removeLayer(femaOverlay);femaOverlay=null}return}
+  const b=map.getBounds(), s=map.getSize(), crs=map.options.crs;
+  const sw=crs.project(b.getSouthWest()), ne=crs.project(b.getNorthEast());
+  const url=`${FEMA_URL}/export?bbox=${sw.x},${sw.y},${ne.x},${ne.y}&bboxSR=3857&imageSR=3857&size=${s.x},${s.y}&layers=show:28,16&transparent=true&format=png32&f=image`;
+  const ov=L.imageOverlay(url,b,{opacity:.55,pane:'fema'});ov.addTo(map);
+  if(femaOverlay){const old=femaOverlay;setTimeout(()=>map.removeLayer(old),600)}femaOverlay=ov;
+}
+map.on('moveend',refreshFema);
+map.on('click',async e=>{
+  if(!cfg.ly.fema)return;
+  const b=map.getBounds(),s=map.getSize();
+  const u=`${FEMA_URL}/identify?geometry=${e.latlng.lng},${e.latlng.lat}&geometryType=esriGeometryPoint&sr=4326&layers=all:28&tolerance=1&mapExtent=${b.getWest()},${b.getSouth()},${b.getEast()},${b.getNorth()}&imageDisplay=${s.x},${s.y},96&returnGeometry=false&f=json`;
+  try{const j=await getJSON(u);const a=(j.results||[])[0]?.attributes||{};
+    L.popup().setLatLng(e.latlng).setContent(`<b>FEMA flood zone</b><br>Zone: ${esc(a.FLD_ZONE||'—')} ${esc(a.ZONE_SUBTY||'')}<br>Static BFE: ${esc(a.STATIC_BFE&&a.STATIC_BFE>-9000?a.STATIC_BFE:'—')} ${esc(a.V_DATUM||'')}<br>Depth: ${esc(a.DEPTH&&a.DEPTH>-9000?a.DEPTH:'—')}<br><span class="small">Check the effective FIRM panel at msc.fema.gov</span>`).openOn(map);
+  }catch(err){log('FEMA identify failed: '+err.message,'err')}
+});
+/* quad grid */
+const quadLayer=L.layerGroup();
+function buildQuad(){quadLayer.clearLayers();const [x0,y0,x1,y1]=cfg.bbox;const st=0.125;
+  for(let x=Math.floor(x0/st)*st;x<=x1+st;x+=st)quadLayer.addLayer(L.polyline([[y0-st,x],[y1+st,x]],{color:'#f472b6',weight:1,opacity:.7,pane:'ref',interactive:false}));
+  for(let y=Math.floor(y0/st)*st;y<=y1+st;y+=st)quadLayer.addLayer(L.polyline([[y,x0-st],[y,x1+st]],{color:'#f472b6',weight:1,opacity:.7,pane:'ref',interactive:false}));
+}
+
+/* ================= radar & rain totals ================= */
+let frames=[], radarLayers=[], cur=0, playing=null, rainTotLayer=null;
+const IEM='https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/';
+function stamp(t){const d=new Date(t);const p=n=>String(n).padStart(2,'0');return d.getUTCFullYear()+p(d.getUTCMonth()+1)+p(d.getUTCDate())+p(d.getUTCHours())+p(d.getUTCMinutes())}
+function buildFrames(){
+  const end=Math.floor((Date.now()-10*60e3)/(5*60e3))*(5*60e3), start=end-cfg.win*864e5;
+  let step=(+cfg.step||0)*60e3; const maxF=Math.max(12,Math.min(400,+cfg.frames||300));
+  if(!step||(end-start)/step>maxF){step=Math.ceil((end-start)/maxF/(5*60e3))*(5*60e3)}
+  frames=[];for(let t=start;t<=end;t+=step)frames.push(t); if(frames[frames.length-1]!==end)frames.push(end);
+  $('#slider').max=frames.length-1; cur=frames.length-1; $('#slider').value=cur;
+  log(`Timeline: ${frames.length} frames, step ${Math.round(step/60e3)} min`);
+  radarLayers.forEach(l=>l&&map.removeLayer(l));radarLayers=[];
+}
+// Radar layers are created lazily around the current frame (a 30-day loop has hundreds of frames).
+function radarLayer(i){if(!radarLayers[i])radarLayers[i]=L.tileLayer(`${IEM}ridge::USCOMP-N0Q-${stamp(frames[i])}/{z}/{x}/{y}.png`,{pane:'radar',opacity:0,maxNativeZoom:11,maxZoom:19,attribution:'NEXRAD via Iowa Env. Mesonet'});return radarLayers[i]}
+function syncRadar(){
+  const keep=new Set();if(cfg.ly.radar&&frames.length){for(let d=-1;d<=4;d++)keep.add((cur+d+frames.length)%frames.length)}
+  radarLayers.forEach((l,i)=>{if(l&&!keep.has(i)){map.removeLayer(l);radarLayers[i]=null}});
+  keep.forEach(i=>{const l=radarLayer(i);if(!map.hasLayer(l))l.addTo(map);l.setOpacity(i===cur?+cfg.radarOp:0)});
+}
+function buildRadar(){radarLayers.forEach(l=>l&&map.removeLayer(l));radarLayers=[];showFrame(cur)}
+function setRainTot(){if(rainTotLayer){map.removeLayer(rainTotLayer);rainTotLayer=null}if(cfg.rainTot){rainTotLayer=L.tileLayer(`${IEM}${cfg.rainTot}/{z}/{x}/{y}.png`,{pane:'radar',opacity:.65,maxNativeZoom:11,maxZoom:19,attribution:'MRMS via IEM'}).addTo(map)}}
+function showFrame(i){
+  cur=Math.max(0,Math.min(frames.length-1,i)); $('#slider').value=cur;
+  syncRadar();
+  $('#tlabel').textContent=frames.length?fmtT(frames[cur])+(cur===frames.length-1?' (latest)':''):'—';
+  renderMarkers(); updateCursor();
+}
+$('#slider').addEventListener('input',e=>{stop();showFrame(+e.target.value)});
+function stop(){if(playing){clearInterval(playing);playing=null;$('#btnPlay').textContent='▶'}}
+$('#btnPlay').onclick=()=>{if(playing)return stop();$('#btnPlay').textContent='❚❚';if(cur>=frames.length-1)cur=-1;
+  playing=setInterval(()=>{let n=cur+1;if(n>=frames.length){n=0}showFrame(n)},+$('#speed').value)};
+$('#speed').onchange=()=>{if(playing){stop();$('#btnPlay').click()}};
+$('#btnLive').onclick=()=>{stop();showFrame(frames.length-1)};
+
+/* ================= data model ================= */
+let sites={}, nws={};
+function getSite(id,info){if(!sites[id])sites[id]={id,no:id.replace(/^USGS-/,''),name:'',lat:null,lon:null,alt:null,vd:null,series:{}};const s=sites[id];
+  for(const k in info){if(info[k]!=null&&info[k]!==''&&(s[k]==null||s[k]===''))s[k]=info[k]}return s}
+function addSeries(s,pc,unit,pts){if(pc==='72137'){if(s.series['00060'])return;pc='00060';unit='cfs (tidally filtered)'}
+  if(pc==='00060'&&s.series['00060']&&/tidally/.test(s.series['00060'].unit||'')&&!/tidally/.test(unit||''))delete s.series['00060'];if(!pts.length)return;pts.sort((a,b)=>a[0]-b[0]);const o=s.series[pc];if(!o||pts.length>o.pts.length)s.series[pc]={unit,pts}}
+function primary(s){for(const c of LEVEL_CODES)if(s.series[c])return c;return null}
+function readingDatum(s,pc){if(PDATUM[pc])return PDATUM[pc];const t=TH[s.id]||{};const gd=t.gd!=null&&t.gd!==''?+t.gd:s.alt;const dd=t.gdd||s.vd;
+  if(gd!=null&&isFinite(gd)&&/NGVD|NAVD/i.test(dd||''))return /NAVD/i.test(dd)?'NAVD88':'NGVD29';return null}
+function gageDatum(s){const t=TH[s.id]||{};return t.gd!=null&&t.gd!==''?+t.gd:(s.alt??0)}
+// raw reading -> elevation in display datum (null if unknown)
+function rawToElev(s,pc,v){if(v==null)return null;const o=siteOff(s);if(PDATUM[pc])return conv(v,PDATUM[pc],cfg.datum,o);const d=readingDatum(s,pc);if(!d)return null;return conv(v+gageDatum(s),d,cfg.datum,o)}
+// threshold (value,datum) -> raw reading space
+function thToRaw(s,pc,v,datum){if(v==null||v===''||!isFinite(+v))return null;v=+v;if(!datum||datum==='RAW')return v;const o=siteOff(s);
+  if(PDATUM[pc])return conv(v,datum,PDATUM[pc],o);const d=readingDatum(s,pc);if(!d)return null;return conv(v,datum,d,o)-gageDatum(s)}
+function lakeGauge(s){if(s.kind==='sfwmd')return !!(STRUCT_LAKE[s.code]&&s.series.SFW_H)||!!s.isLake;return /\bLAKE\b|\bLK\b/i.test(s.name)&&!/CREEK|CANAL|RIVER|TAILWATER/i.test(s.name)}
+function defaultsFor(s,t){if(!lakeGauge(s))return null;const k=schedKey(lakeText(s));if(!k)return null;const sc=REG_SCHED[k];
+  return {key:k,reg:+regAt(k,t??frames[cur]??Date.now()).toFixed(2),src:`${sc.name} regulation schedule at ${sc.str} – ${sc.src}`}}
+// NWS flood stages are in gage-height feet. Shift them onto the series the map displays:
+// same series → 0; if the gauge also reports gage height (00065) → median(displayed − gage height);
+// otherwise only if NWS's own current reading matches ours (same reference) → 0; else don't use them.
+function nwsShift(s,pc){
+  if(s._ghs!==undefined)return s._ghs;let r=null;const n=nws[s.id];
+  if(pc==='00065')r=0;
+  else if(s.series['00065']){const P=s.series[pc].pts,d=[];for(let i=0;i<P.length;i+=Math.max(1,Math.floor(P.length/60))){const g=valueAt(s.series['00065'].pts,P[i][0]);if(g&&Math.abs(g[0]-P[i][0])<3600e3)d.push(P[i][1]-g[1])}
+    if(d.length){d.sort((a,b)=>a-b);r=+d[Math.floor(d.length/2)].toFixed(3)}}
+  else if(n&&n.obs!=null){const last=s.series[pc].pts.at(-1)[1];if(Math.abs(last-n.obs)<0.75)r=0}
+  s._ghs=r;return r}
+function thresholdsRaw(s,when){
+  const pc=primary(s); if(!pc)return [];
+  const t=TH[s.id]||{}, out=[], d=t.datum||'NAVD88';
+  if(t.meanRaw!=null)out.push(['mean',+t.meanRaw]);
+  let reg=t.reg; let regD=d; if((reg==null||reg==='')&&!t.noDefault){const df=defaultsFor(s,when);if(df){reg=df.reg;regD='NGVD29'}}
+  const r=thToRaw(s,pc,reg,regD); if(r!=null)out.push(['reg',r]);
+  const fis=t.noDefault?null:fisFor(s);
+  for(const k of ['y10','y25','y50','y100','y500']){let v=null;
+    if(t[k]!=null&&t[k]!=='')v=thToRaw(s,pc,t[k],d); else if(fis&&fis[k]!=null)v=thToRaw(s,pc,fis[k],'NAVD88');
+    if(v!=null)out.push([k,v])}
+  const n=nws[s.id]; if(n){const sh=nwsShift(s,pc);if(sh!=null)for(const k of ['action','minor','moderate','major'])if(n[k]!=null)out.push([k,n[k]+sh])}
+  return out.sort((a,b)=>a[1]-b[1]);
+}
+function statusOf(s,v,when){
+  if(v==null)return null; const th=thresholdsRaw(s,when); if(!th.length)return NOREF;
+  let best=null; for(const [k,x] of th){if(v>=x&&(!best||SEV[k].s>SEV[best].s))best=k}
+  if(!best)return th.some(([k])=>k==='mean')?BELOW:{c:'#38bdf8',l:'Below reference levels'};
+  return SEV[best];
+}
+
+/* ================= USGS loaders ================= */
+const NEW_BASE=['https://api.waterdata.usgs.gov/ogcapi/v1','https://api.waterdata.usgs.gov/ogcapi/v0'];
+let newBase=NEW_BASE[0];
+function nu(path,params){const u=new URL(newBase+path);u.searchParams.set('f','json');for(const k in params)u.searchParams.set(k,params[k]);if(cfg.key)u.searchParams.set('api_key',cfg.key);return u.toString()}
+async function newPaged(path,params,maxPages=6){let url=nu(path,params),feats=[];
+  for(let p=0;p<maxPages&&url;p++){const j=await getJSON(url);feats=feats.concat(j.features||[]);const nx=(j.links||[]).find(l=>l.rel==='next');url=nx?nx.href:null}
+  return feats}
+const s_huc={};
+async function loadNew(){
+  const bb=cfg.bbox.join(',');
+  let latest;
+  for(const b of NEW_BASE){newBase=b;try{latest=await newPaged('/collections/latest-continuous/items',{bbox:bb,limit:10000});break}catch(e){log(`Water Data API ${b.split('/').pop()} latest-continuous: ${e.message}`,'err')}}
+  if(!latest)throw new Error('Water Data API unavailable');
+  const cutoff=Date.now()-30*864e5, want=[];
+  for(const f of latest){const p=f.properties||{};if(!WANT.has(p.parameter_code))continue;const t=Date.parse(p.time);if(!(t>cutoff))continue;
+    const c=f.geometry&&f.geometry.coordinates;const s=getSite(p.monitoring_location_id,{lat:c?c[1]:null,lon:c?c[0]:null});
+    want.push([s.id,p.parameter_code,p.unit_of_measure,p.time_series_id])}
+  log(`Water Data API: ${want.length} active series in area`,'ok');
+  try{const locs=await newPaged('/collections/monitoring-locations/items',{bbox:bb,limit:10000,skipGeometry:'true'},8);
+    for(const f of locs){const id=f.id||f.properties?.id;if(!sites[id])continue;const p=f.properties||{};
+      s_huc[id]=p.hydrologic_unit_code||'';getSite(id,{name:p.monitoring_location_name,cty:p.county_code,alt:p.altitude!=null?+p.altitude:null,vd:p.vertical_datum||p.altitude_datum||p.vertical_datum_name})}
+  }catch(e){log('monitoring-locations: '+e.message,'err')}
+  for(const id of Object.keys(sites))if(s_huc[id]&&!/^030801(01|02|03)/.test(s_huc[id]))delete sites[id];
+  for(let i=want.length-1;i>=0;i--)if(!sites[want[i][0]])want.splice(i,1);
+  // One area query per parameter (paged) instead of one request per gauge – stays well inside the rate limit.
+  const dur=`P${cfg.win}D`, tsKeep={}, unit={};for(const [id,pc,u,ts] of want){tsKeep[id+'|'+pc]=ts;unit[pc]=u}
+  const pcs=[...new Set(want.map(w=>w[1]))];
+  for(const pc of pcs){
+    const feats=await newPaged('/collections/continuous/items',{bbox:bb,parameter_code:pc,time:dur,properties:'monitoring_location_id,time_series_id,time,value',skipGeometry:'true',limit:50000},12);
+    const by={};for(const f of feats){const q=f.properties;const k=q.monitoring_location_id+'|'+pc;if(!(k in tsKeep))continue;if(tsKeep[k]&&q.time_series_id&&q.time_series_id!==tsKeep[k])continue;
+      const v=parseFloat(q.value),t=Date.parse(q.time);if(isFinite(v)&&isFinite(t))(by[q.monitoring_location_id]=by[q.monitoring_location_id]||[]).push([t,v])}
+    for(const [id,pts] of Object.entries(by))if(sites[id])addSeries(sites[id],pc,unit[pc],pts);
+    log(`Water Data API ${pc}: ${feats.length} values, ${Object.keys(by).length} gauges`,'ok');
+  }
+}
+async function loadLegacy(){
+  const bb=cfg.bbox.map(x=>(+x).toFixed(5)).join(',');
+  const j=await getJSON(`https://waterservices.usgs.gov/nwis/iv/?format=json&huc=${HUCS}&parameterCd=${[...WANT].filter(c=>/^\d{5}$/.test(c)).join(',')}&period=P${Math.min(cfg.win,120)}D&siteStatus=active`,{timeout:90000});
+  let n=0;
+  for(const ts of (j.value&&j.value.timeSeries)||[]){
+    const si=ts.sourceInfo, no=si.siteCode[0].value, g=si.geoLocation.geogLocation;
+    const s=getSite('USGS-'+no,{name:si.siteName,lat:+g.latitude,lon:+g.longitude});
+    const pc=ts.variable.variableCode[0].value, nd=ts.variable.noDataValue;
+    let best=[];for(const vv of ts.values)if(vv.value.length>best.length)best=vv.value;
+    addSeries(s,pc,ts.variable.unit.unitCode,best.map(p=>[Date.parse(p.dateTime),parseFloat(p.value)]).filter(p=>isFinite(p[1])&&p[1]!==nd&&p[1]>-9000));n++;
+  }
+  log(`Legacy WaterServices: ${n} series`,'ok');
+  try{const rdb=await getJSON(`https://waterservices.usgs.gov/nwis/site/?format=rdb&huc=${HUCS}&siteStatus=active&hasDataTypeCd=iv&siteOutput=expanded`,{text:true});
+    const lines=rdb.split('\n').filter(l=>l&&l[0]!=='#');const h=lines[0].split('\t');const iNo=h.indexOf('site_no'),iA=h.indexOf('alt_va'),iD=h.indexOf('alt_datum_cd'),iC=h.indexOf('county_cd');
+    for(const l of lines.slice(2)){const c=l.split('\t');const s=sites['USGS-'+c[iNo]];if(s){if(iC>=0)s.cty=s.cty||c[iC];if(c[iA]!==''){s.alt=s.alt??+c[iA];s.vd=s.vd||c[iD]}}}
+  }catch(e){log('Legacy site metadata: '+e.message,'err')}
+}
+async function loadUSGS(){
+  sites={};
+  const tryNew=async()=>{await loadNew();if(!Object.values(sites).some(s=>Object.keys(s.series).length))throw new Error('no data returned')};
+  if(cfg.src==='legacy'){await loadLegacy();return}
+  if(cfg.src==='new'){await tryNew();return}
+  // Auto: legacy WaterServices returns every gauge's full history in ONE request; the new API needs one request per
+  // series and hits its hourly rate limit (HTTP 429) without an api.data.gov key. Use the new API when legacy fails.
+  if(cfg.key){try{await tryNew();return}catch(e){log('Water Data API failed ('+e.message+'); trying legacy','err');sites={}}}
+  try{await loadLegacy();if(!Object.values(sites).some(s=>Object.keys(s.series).length))throw new Error('no data')}
+  catch(e){log('Legacy WaterServices failed ('+e.message+'); trying Water Data API','err');sites={};await tryNew()}
+  fixGageDatums();
+}
+// Many Reedy Creek district / RCID gauges have no gage datum in USGS metadata and report gage height that is
+// already an elevation (gage datum 0 ft NGVD29, readings ~70–95 ft). Treat those as NGVD29 elevations (flagged).
+function fixGageDatums(){for(const s of Object.values(sites)){if(!s.series['00065']||primary(s)!=='00065')continue;
+  if(s.alt==null||s.alt===''||!isFinite(+s.alt)||!/NGVD|NAVD/i.test(s.vd||'')){const pts=s.series['00065'].pts;const med=pts[Math.floor(pts.length/2)][1];
+    if(med>20&&(s.alt==null||+s.alt===0||s.alt==='')){s.alt=0;s.vd='NGVD29';s.datumAssumed=true}}}}
+/* ================= SFWMD DBHYDRO Insights (structures, lakes, canals) ================= */
+const SF_API='https://insightsdata.api.sfwmd.gov/v1/insights-data';
+const SF_WS=['SHINGLE CREEK','BOGGY CREEK','UPPER REEDY CREEK','LOWER REEDY CREEK','EAST LAKE TOHOPEKALIGA','LAKE TOHOPEKALIGA','LAKE CYPRESS','LAKE HATCHINEHA','ALLIGATOR LAKE','LAKE GENTRY','LAKE HART','LAKE MYRTLE','LAKE KISSIMMEE'];
+async function loadSFWMD_data(){
+  const today=new Date().toISOString().slice(0,10), from=new Date(Date.now()-40*864e5).toISOString().slice(0,10);
+  const body={query:{locations:SF_WS.map(n=>({name:n,type:'WATERSHED'})),parameters:['STG','FLOW','GATE'],category:['ALL'],status:['A'],frequency:['BK'],statistic:['ALL'],agency:['ALL'],recorder:['ALL'],
+    dates:{startdate:from,enddate:today},reporttype:'timeseries',reportformat:'table',dbkeys:['ALL'],stationIDs:['ALL'],usgsIDs:['ALL']}};
+  const r=await fetch(SF_API+'/cont/ts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  const res=((await r.json()).results||[]).filter(x=>x.endDate>Date.now()-10*864e5&&x.latitude&&x.longitude);
+  // best dataset per location+parameter (prefer telemetry, then most recent)
+  const best={};for(const x of res){const k=x.location+'|'+x.parameter;const pr=x.recorder==='TELE'?2:1;if(!best[k]||pr>best[k].pr||(pr===best[k].pr&&x.endDate>best[k].x.endDate))best[k]={pr,x}}
+  const pick={}; // per site: role -> dataset
+  for(const {x} of Object.values(best)){
+    const suf=(/_([A-Z]+)$/.exec(x.location)||[])[1]||'';
+    let role=null;
+    if(x.parameter==='STG')role=suf==='T'?'SFW_T':(suf===''||suf==='H'||/_H$/.test(x.location))?'SFW_H':(suf==='W'?'SFW_H':null);
+    else if(x.parameter==='FLOW')role='00060';
+    else if(x.parameter==='GATE')role='GATE';
+    if(!role)continue;
+    const key=x.siteName||x.location.replace(/_[A-Z]+$/,'');
+    pick[key]=pick[key]||{};const cur=pick[key][role];
+    const pref=v=>(/_S$/.test(v.location)?3:/_H$/.test(v.location)?3:/_LCK$/.test(v.location)?1:2);
+    if(!cur||pref(x)>pref(cur))pick[key][role]=x;
+  }
+  const want=[];
+  for(const [key,roles] of Object.entries(pick)){
+    const any=roles.SFW_H||roles['00060']||roles.SFW_T||roles.GATE;
+    const id='SFWMD-'+key;
+    const desc=(roles.SFW_H||any).locationDesc||'';
+    const s=getSite(id,{name:desc||key,code:key,lat:dms(any.latitude),lon:-dms(any.longitude),desc,countyName:any.countyName,kind:'sfwmd'});
+    s.no=key; s.isLake=!!roles.SFW_H&&/\bLAKE\b/i.test(desc)&&!/TAILWATER|CREEK/i.test(desc)&&!/^S-?\d/i.test(key)&&!/^C-?\d/i.test(desc);
+    s.sfIds={};for(const [role,x] of Object.entries(roles)){s.sfIds[role]=x.timeseriesId;want.push([x.timeseriesId,id,role,x.units])}
+  }
+  log(`SFWMD: ${Object.keys(pick).length} sites, ${want.length} live datasets`,'ok');
+  const chunks=[];for(let i=0;i<want.length;i+=8)chunks.push(want.slice(i,i+8));
+  await pool(chunks,4,async ch=>{
+    const map_={};ch.forEach(w=>map_[w[0]]=w);
+    const j=await getJSON(`${SF_API}/cont/data?timeseriesIds=${ch.map(w=>w[0]).join(',')}&reportType=timeseries&format=json&period=30days&datum=NAVD88`,{timeout:120000});
+    const by={};for(const row of j.timeseries||[]){if(row.value==null||row.value<=-9999)continue;(by[row.timeseriesID]=by[row.timeseriesID]||[]).push([parseSf(row.timestamp),+row.value])}
+    for(const [tid,pts] of Object.entries(by)){const w=map_[tid];if(w)addSeries(sites[w[1]],w[2],w[3],pts.filter(p=>isFinite(p[0])))}
+  });
+}
+async function sfRealtime(s){ // site-specific datum offset + current gate/flow snapshot
+  if(s.sfRT)return s.sfRT;
+  try{const j=await getJSON(`https://insights.api.sfwmd.gov/v1/insights/sites/${encodeURIComponent(s.code)}/realtime`,{timeout:30000});
+    const d=(j.datums||[]).find(x=>/NAVD/.test(x.datumDesc)&&/NGVD/.test(x.toDatumDesc));if(d&&isFinite(d.offset))s.sfOff=+d.offset;
+    s.sfRT=j;return j}catch(e){log('SFWMD realtime '+s.code+': '+e.message,'err');return null}
+}
+
+/* long-term mean from daily values */
+async function dailyMean(s,pc){
+  const start=new Date(Date.now()-20*365.25*864e5).toISOString().slice(0,10);
+  try{const feats=await newPaged('/collections/daily/items',{monitoring_location_id:s.id,parameter_code:pc,statistic_id:'00003',time:start+'T00:00:00Z/'+new Date().toISOString(),properties:'time,value',skipGeometry:'true',limit:50000},3);
+    const v=feats.map(f=>parseFloat(f.properties.value)).filter(isFinite);if(v.length>100)return {mean:v.reduce((a,b)=>a+b,0)/v.length,n:v.length}}
+  catch(e){log(`daily (new) ${s.no}: ${e.message}`,'err')}
+  const j=await getJSON(`https://waterservices.usgs.gov/nwis/dv/?format=json&sites=${s.no}&parameterCd=${pc}&statCd=00003&startDT=${start}`);
+  const v=[];for(const ts of j.value.timeSeries||[])for(const vv of ts.values)for(const p of vv.value){const x=parseFloat(p.value);if(isFinite(x)&&x>-9000)v.push(x)}
+  return v.length?{mean:v.reduce((a,b)=>a+b,0)/v.length,n:v.length}:null;
+}
+
+/* ================= NWS (NWPS) ================= */
+async function loadNWS(){
+  nws={};const [x0,y0,x1,y1]=cfg.bbox;nwsLayer.clearLayers();
+  try{
+    const j=await getJSON(`https://api.water.noaa.gov/nwps/v1/gauges?bbox.xmin=${x0}&bbox.ymin=${y0}&bbox.xmax=${x1}&bbox.ymax=${y1}&srid=EPSG_4326`);
+    const gs=j.gauges||[];log(`NWS: ${gs.length} forecast gauges`,'ok');
+    await pool(gs,4,async g=>{
+      const d=await getJSON(`https://api.water.noaa.gov/nwps/v1/gauges/${g.lid}`);
+      const c=(d.flood&&d.flood.categories)||{};const th={};for(const k of ['action','minor','moderate','major']){const st=c[k]&&c[k].stage;if(st!=null&&st>-9000)th[k]=+st}
+      let sid=d.usgsId?'USGS-'+d.usgsId:null;
+      if(!sid||!sites[sid]){let best=null,bd=1e9;for(const s of Object.values(sites)){if(s.lat==null)continue;const dd=Math.hypot(s.lat-g.latitude,(s.lon-g.longitude)*0.88);if(dd<bd){bd=dd;best=s}}if(best&&bd<0.004)sid=best.id}
+      if(/MHHW/i.test(g.name||'')||/MHHW/i.test(JSON.stringify(d.datums||'')))return; // tidal-datum duplicates
+      const ob=d.status&&d.status.observed;
+      if(sid&&Object.keys(th).length){nws[sid]=Object.assign(th,{lid:g.lid,obs:ob&&ob.primary>-900?+ob.primary:null});if(sites[sid])delete sites[sid]._ghs}
+      const obs=g.status&&g.status.observed||{};
+      const col={major:'#a21caf',moderate:'#dc2626',minor:'#f97316',action:'#f59e0b'}[(obs.floodCategory||'').toLowerCase()]||'#94a3b8';
+      L.marker([g.latitude,g.longitude],{icon:L.divIcon({className:'',html:`<div style="width:14px;height:14px;background:${col};border:2px solid #fff;border-radius:2px"></div>`,iconSize:[14,14]})})
+        .bindPopup(`<b>NWS ${esc(g.lid)}</b> ${esc(g.name)}<br>Observed: ${esc(obs.primary)} ${esc(obs.primaryUnit||'')} (${esc(obs.floodCategory||'n/a')})<br>${Object.entries(th).map(([k,v])=>k+': '+v).join(' · ')||'No flood categories set'}<br><a href="https://water.noaa.gov/gauges/${esc(g.lid)}" target="_blank" rel="noopener">NWS hydrograph &amp; forecast</a>`).addTo(nwsLayer);
+    });
+  }catch(e){log('NWS NWPS: '+e.message,'err')}
+}
+const nwsLayer=L.layerGroup();
+
+/* ================= rainfall (IEM IEMRE / MRMS) ================= */
+let zoneRain=[];
+const ymd=t=>new Date(t).toLocaleDateString('en-CA',{timeZone:TZ});
+async function iemreDaily(lat,lon,days){
+  const e=ymd(Date.now()),s=ymd(Date.now()-(days-1)*864e5);
+  const j=await getJSON(`https://mesonet.agron.iastate.edu/iemre/multiday/${s}/${e}/${lat.toFixed(3)}/${lon.toFixed(3)}/json`);
+  return (j.data||[]).map(r=>{let v=r.mrms_precip_in;if(v==null)v=r.daily_precip_in;if(v==null)v=r.prism_precip_in;return {date:r.date,v:v==null?null:+v}});
+}
+async function loadRain(){
+  const days=Math.min(Math.max(cfg.win,3),60);
+  zoneRain=await pool(ZONES,3,async z=>({z,d:await iemreDaily(z.lat,z.lon,days)}));
+  renderRain();
+}
+function bars(d){const mx=Math.max(1,...d.map(x=>x.v||0));const w=Math.max(2,Math.floor(150/d.length)-1);
+  return `<svg width="${(w+1)*d.length}" height="28">${d.map((x,i)=>`<rect x="${i*(w+1)}" y="${28-26*(x.v||0)/mx}" width="${w}" height="${26*(x.v||0)/mx}" fill="#38bdf8"><title>${x.date}: ${f2(x.v)} in</title></rect>`).join('')}</svg>`}
+function renderRain(){
+  const ok=zoneRain.filter(Boolean);
+  if(!ok.length){$('#rainZones').innerHTML='<span class="err">Rainfall service unavailable – see Log.</span>';}
+  else $('#rainZones').innerHTML=`<table><tr><th>Basin</th><th>Daily</th><th class="n">24h</th><th class="n">Total</th></tr>${ok.map(({z,d})=>{const tot=d.reduce((a,b)=>a+(b.v||0),0);const last=d.length?d[d.length-1].v:null;
+    return `<tr class="click" data-lat="${z.lat}" data-lon="${z.lon}"><td>${esc(z.name)}</td><td>${bars(d)}</td><td class="n">${f2(last)}</td><td class="n"><b>${f2(tot)}</b></td></tr>`}).join('')}</table><div class="small">${ok[0].d.length} days: ${esc(ok[0].d[0]?.date)} → ${esc(ok[0].d.at(-1)?.date)}</div>`;
+  $('#rainZones').querySelectorAll('tr.click').forEach(r=>r.onclick=()=>map.setView([+r.dataset.lat,+r.dataset.lon],12));
+  const rg=Object.values(sites).filter(s=>s.series['00045']);
+  $('#rainGauges').innerHTML=rg.length?`<table><tr><th>Gauge</th><th class="n">24h</th><th class="n">Window</th></tr>${rg.map(s=>{const p=s.series['00045'].pts,t=Date.now();
+    return `<tr class="click" data-id="${s.id}"><td>${esc(s.name)}</td><td class="n">${f2(sumBetween(p,t-864e5,t))}</td><td class="n">${f2(sumBetween(p,0,t))}</td></tr>`}).join('')}</table>`:'No USGS rain gauges reporting in the area.';
+  $('#rainGauges').querySelectorAll('tr.click').forEach(r=>r.onclick=()=>openDetail(r.dataset.id));
+}
+async function basinRainPopup(ll,name){
+  const pop=L.popup().setLatLng(ll).setContent('Loading rainfall…').openOn(map);
+  try{const d=await iemreDaily(ll.lat,ll.lng,Math.min(Math.max(cfg.win,3),60));const tot=d.reduce((a,b)=>a+(b.v||0),0);
+    pop.setContent(`<b>${esc(name||'Basin')}</b><br>MRMS rainfall, last ${d.length} days: <b>${f2(tot)} in</b><br>${bars(d)}`)}
+  catch(e){pop.setContent('Rainfall lookup failed: '+esc(e.message))}
+}
+
+/* ================= reference layer loaders ================= */
+async function loadHUC(){
+  const [x0,y0,x1,y1]=cfg.bbox;
+  const u=`https://hydro.nationalmap.gov/arcgis/rest/services/wbd/MapServer/5/query?where=huc10%20LIKE%20%27030801%25%27&geometry=${x0},${y0},${x1},${y1}&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=name,huc10&returnGeometry=true&outSR=4326&maxAllowableOffset=0.002&f=geojson`;
+  try{const j=await getJSON(u);hucLayer.clearLayers();hucLayer.addData(j);log(`HUC-10: ${(j.features||[]).length} watersheds`,'ok')}catch(e){log('HUC-12 (USGS WBD): '+e.message,'err')}
+}
+async function loadSFWMD(){
+  const [x0,y0,x1,y1]=cfg.bbox;const g=`geometry=${x0},${y0},${x1},${y1}&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&outSR=4326&f=geojson`;
+  for(const lyr of [4,1,0]){try{const j=await getJSON(`https://geoweb.sfwmd.gov/agsext1/rest/services/WaterManagementSystem/All_Structures/FeatureServer/${lyr}/query?where=1%3D1&${g}`);
+    if((j.features||[]).length){structLayer.clearLayers();structLayer.addData(j);log(`SFWMD structures: ${j.features.length} (layer ${lyr})`,'ok');break}}catch(e){log(`SFWMD structures layer ${lyr}: ${e.message}`,'err')}}
+  try{const j=await getJSON(`https://geoweb.sfwmd.gov/agsext2/rest/services/MonitoringLocations/DBHYDRO_SiteStation/FeatureServer/0/query?where=1%3D1&${g}&resultRecordCount=3000`);
+    dbLayer.clearLayers();dbLayer.addData(j);log(`DBHYDRO stations: ${(j.features||[]).length}`,'ok')}catch(e){log('DBHYDRO stations: '+e.message,'err')}
+}
+
+/* ================= lake names + regulation schedule popup ================= */
+const lakeLayer=L.layerGroup();
+function lakeSites(lab){const key=lab.fis.split(' ').filter(w=>w.length>3&&!/LAKE/.test(w))[0]||lab.fis;
+  return Object.values(sites).filter(s=>primary(s)&&lakeGauge(s)&&schedKey(lakeText(s))===lab.k&&new RegExp(key,'i').test(lakeText(s)))
+    .sort((a,b)=>(b.kind==='sfwmd')-(a.kind==='sfwmd'))}
+const MINOR_ZOOM=12; // small lakes' labels only when zoomed in, so the big-lake labels stay readable
+function buildLakeLabels(){lakeLayer.clearLayers();
+  for(const lab of LAKE_LABELS){if(lab.minor&&map.getZoom()<MINOR_ZOOM)continue;const m=L.marker([lab.lat,lab.lon],{icon:L.divIcon({className:'',html:`<div class="lakelbl">${esc(lab.n)}</div>`,iconSize:null,iconAnchor:[0,12]}),zIndexOffset:1000});
+    m.on('click',()=>openSchedule(lab));lakeLayer.addLayer(m)}}
+const lakeFsLayer=L.layerGroup();const firmBFE={};
+function lakeFIS(lab){return fisFor({kind:'usgs',id:'USGS-x',name:lab.fis,series:{}})}
+async function loadFirmBFE(){ // FEMA NFHL effective FIRM AE zone static BFE at each lake center
+  await pool(LAKE_LABELS,4,async lab=>{
+    const u=`${FEMA_URL}/28/query?geometry=${lab.lon},${lab.lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=FLD_ZONE,STATIC_BFE,V_DATUM,DFIRM_ID&returnGeometry=false&f=json`;
+    const j=await getJSON(u,{timeout:30000});const a=(j.features||[])[0]?.attributes;if(a)firmBFE[lab.n]={zone:a.FLD_ZONE,bfe:a.STATIC_BFE>-9000?+a.STATIC_BFE:null,datum:a.V_DATUM||'',dfirm:a.DFIRM_ID}});
+  buildLakeFS();
+}
+function lakeOff(lab){return +offAt(lab.lat,lab.lon).toFixed(3)}
+function buildLakeFS(){lakeFsLayer.clearLayers();
+  for(const lab of LAKE_LABELS){if(lab.minor&&map.getZoom()<MINOR_ZOOM)continue;const f=lakeFIS(lab),fr=firmBFE[lab.n],o=lakeOff(lab);
+    const v=f&&f.y100!=null?f.y100:(fr&&fr.bfe!=null&&/NAVD/.test(fr.datum)?fr.bfe:null);if(v==null&&!fr)continue;
+    const txt=v!=null?`100-yr ${f2(conv(v,'NAVD88',cfg.datum,o))}`:`Zone ${fr.zone}, no BFE`;
+    const m=L.marker([lab.lat,lab.lon],{icon:L.divIcon({className:'',html:`<div class="fslbl">${txt}</div>`,iconSize:null,iconAnchor:[0,-12]}),zIndexOffset:900});
+    m.bindTooltip(`<b>${esc(lab.n)}</b> – flood stages, ft ${cfg.datum}<br>${f?`FIS: 10-yr ${f2(conv(f.y10,'NAVD88',cfg.datum,o))} · 50-yr ${f2(conv(f.y50,'NAVD88',cfg.datum,o))} · <b>100-yr ${f2(conv(f.y100,'NAVD88',cfg.datum,o))}</b> · 500-yr ${f2(conv(f.y500,'NAVD88',cfg.datum,o))}<br><span style="opacity:.7">${esc(f.src)}</span><br>`:'No FIS stillwater value<br>'}${fr?`FIRM (NFHL ${esc(fr.dfirm)}): Zone ${esc(fr.zone)}${fr.bfe!=null?`, static BFE ${f2(conv(fr.bfe,/NGVD/.test(fr.datum)?'NGVD29':'NAVD88',cfg.datum,o))}`:''}`:''}<br><span style="opacity:.7">Offset used ${o.toFixed(2)} ft</span>`,{direction:'top'});
+    m.on('click',()=>openSchedule(lab));lakeFsLayer.addLayer(m)}}
+let schedChart=null, gChart=null;
+/* Gauge popup: last 10 days of water-surface elevation (display datum) with reference lines */
+function openGaugePopup(id){
+  const s=sites[id];if(!s||s.lat==null)return;const pc=primary(s);const now=Date.now(),t0=now-10*864e5;
+  const last=pc&&s.series[pc].pts.at(-1);const el=last?rawToElev(s,pc,last[1]):null;const st=last?statusOf(s,last[1],now):null;
+  const q=s.series['00060']&&s.series['00060'].pts.at(-1);
+  const w10=pc?s.series[pc].pts.filter(p=>p[0]>=t0):[];const vals=w10.map(p=>rawToElev(s,pc,p[1])??p[1]);
+  const chg=vals.length>1?vals.at(-1)-vals[0]:null;
+  const html=`<b>${esc(s.name)}</b><div class="small">${s.kind==='sfwmd'?'SFWMD '+esc(s.code):'USGS '+esc(s.no)}${s.datumAssumed?' · datum assumed NGVD29':''}</div>
+   <div style="margin:4px 0">${pc?`<b style="font-size:16px">${f2(el??last[1])}</b> ft ${el!=null?cfg.datum:'(gage ht)'} ${st?`<span class="chip" style="background:${st.c}">${st.l}</span>`:''}`:''}
+   ${q?` · <b>${Math.round(q[1]).toLocaleString()}</b> cfs`:''}</div>
+   ${vals.length?`<div class="small">10-day range ${f2(Math.min(...vals))} – ${f2(Math.max(...vals))} · net change ${chg>0?'+':''}${f2(chg)} ft</div>`:'<div class="small">No elevation record – flow only.</div>'}
+   <div style="height:200px;margin-top:4px"><canvas id="gCv"></canvas></div>
+   <div style="margin-top:6px;display:flex;gap:6px"><button id="gMore" class="pri">Details &amp; flood levels</button></div>`;
+  L.popup({maxWidth:440,className:'gpop',autoPanPadding:[20,70]}).setLatLng([s.lat,s.lon]).setContent(html).openOn(map);
+  setTimeout(()=>{if(gChart){gChart.destroy();gChart=null}const cv=document.getElementById('gCv');if(!cv)return;
+    document.getElementById('gMore').onclick=()=>{map.closePopup();openDetail(s.id)};
+    const ds=[];const toY=v=>rawToElev(s,pc,v)??v;
+    if(pc){ds.push({label:el!=null?'Elevation, ft '+cfg.datum:'Gage height, ft',data:w10.map(p=>({x:p[0],y:toY(p[1])})),borderColor:'#38bdf8',borderWidth:2,pointRadius:0,yAxisID:'y'});
+      if(s.series.SFW_T)ds.push({label:'Tailwater',data:s.series.SFW_T.pts.filter(p=>p[0]>=t0).map(p=>({x:p[0],y:rawToElev(s,'SFW_T',p[1])})),borderColor:'#f472b6',borderWidth:1.5,pointRadius:0,yAxisID:'y'});
+      const dfk=defaultsFor(s,now),ur=(TH[s.id]||{}).reg;
+      if(dfk&&(ur==null||ur==='')){const o=siteOff(s),line=[];for(let t=t0;t<=now;t+=6*3600e3)line.push({x:t,y:conv(regAt(dfk.key,t),'NGVD29',cfg.datum,o)});ds.push({label:'Regulation',data:line,borderColor:SEV.reg.c,borderWidth:1.5,pointRadius:0,yAxisID:'y'})}
+      // only show reference lines near the data so the 10-day trace stays readable
+      const lo=Math.min(...vals),hi=Math.max(...vals);
+      for(const [k,v] of thresholdsRaw(s,now)){if(k==='reg'&&dfk)continue;const y=toY(v);if(y<lo-3||y>hi+4)continue;
+        ds.push({label:SEV[k].l+' '+f2(y),data:[{x:t0,y},{x:now,y}],borderColor:SEV[k].c,borderDash:[5,4],borderWidth:1.2,pointRadius:0,yAxisID:'y'})}}
+    if(s.series['00060'])ds.push({label:'Flow, cfs',data:s.series['00060'].pts.filter(p=>p[0]>=t0).map(p=>({x:p[0],y:p[1]})),borderColor:'#a3e635',borderWidth:1.2,borderDash:[3,2],pointRadius:0,yAxisID:pc?'y2':'y',hidden:!!pc});
+    gChart=new Chart(cv,{type:'line',data:{datasets:ds},options:{responsive:true,maintainAspectRatio:false,animation:false,parsing:false,interaction:{mode:'nearest',intersect:false},
+      plugins:{legend:{labels:{color:'#cbd5e1',boxWidth:10,font:{size:9}}},tooltip:{callbacks:{title:i=>fmtT(i[0].parsed.x),label:c=>c.dataset.label.split(',')[0]+': '+(c.dataset.yAxisID==='y2'||/cfs/.test(c.dataset.label)?Math.round(c.parsed.y):c.parsed.y.toFixed(2))}}},
+      scales:{x:{type:'linear',min:t0,max:now,ticks:{color:'#94a3b8',stepSize:864e5,callback:v=>fmtD(v),maxTicksLimit:11},grid:{color:'#1f2937'}},
+        y:{title:{display:true,text:pc?(el!=null?'ft '+cfg.datum:'ft gage'):'cfs',color:'#94a3b8'},ticks:{color:'#94a3b8'},grid:{color:'#1f2937'}},
+        y2:{display:'auto',position:'right',title:{display:true,text:'cfs',color:'#a3e635'},ticks:{color:'#a3e635'},grid:{display:false}}}}});
+  },50);
+}
+function openSchedule(lab){
+  if(!lab.k){const f=lakeFIS(lab),o=lakeOff(lab),fr=firmBFE[lab.n];L.popup().setLatLng([lab.lat,lab.lon]).setContent(`<b>${esc(lab.n)}</b><br>No regulation schedule (not a regulated chain-of-lakes pool).${f?`<br>FIS 100-yr: ${f2(conv(f.y100,'NAVD88',cfg.datum,o))} ft ${cfg.datum}`:''}${fr?`<br>FIRM Zone ${esc(fr.zone)}${fr.bfe!=null?', BFE '+fr.bfe+' '+esc(fr.datum):''}`:''}`).openOn(map);return}
+  const sc=REG_SCHED[lab.k];const gs=lakeSites(lab);const g=gs[0];
+  const off=g?siteOff(g):(lab.k==='HART'?1.02:0.9);const D=cfg.datum, toD=v=>conv(v,'NGVD29',D,off);
+  const now=Date.now(),y=new Date().getFullYear();const today=regAt(lab.k,now);
+  let cur='',dep='';
+  if(g){const pc=primary(g),last=g.series[pc].pts.at(-1);const el=rawToElev(g,pc,last[1]);if(el!=null){cur=f2(el);dep=(el-toD(today)).toFixed(2)}}
+  const fis=g?fisFor(g):fisFor({kind:'usgs',id:'USGS-x',name:lab.fis,series:{}});
+  const fisD=k=>fis&&fis[k]!=null?conv(fis[k],'NAVD88',D,off):null;
+  const html=`<b style="font-size:14px">${esc(lab.n)}</b><div class="small">${esc(sc.name)} · controlled at ${esc(sc.str)}</div>
+   <table style="margin:6px 0"><tr><td>Regulation today</td><td class="n"><b>${f2(toD(today))}</b> ft ${D}</td><td class="small">(${f2(today)} NGVD29)</td></tr>
+   ${g?`<tr><td>Current stage</td><td class="n"><b>${cur||'—'}</b> ft ${D}</td><td class="small">${esc(g.kind==='sfwmd'?'SFWMD '+g.code:'USGS '+g.no)}</td></tr>
+   <tr><td>Departure</td><td class="n" style="color:${+dep>0?'#fca5a5':'#93c5fd'}"><b>${dep?(+dep>0?'+':'')+dep:'—'}</b> ft</td><td class="small">${+dep>0?'above':'below'} schedule</td></tr>`:''}
+   ${fis?`<tr><td>FIS 10-yr / 100-yr</td><td class="n">${f2(fisD('y10'))} / ${f2(fisD('y100'))}</td><td class="small">ft ${D}</td></tr>`:''}</table>
+   <div style="height:230px"><canvas id="schedCv"></canvas></div>
+   <div class="small" style="margin-top:4px">Schedule: ${esc(sc.src)}. Converted from NGVD29 using offset ${off.toFixed(2)} ft. Blue line = observed stage (last ${cfg.win} days).</div>`;
+  const pop=L.popup({maxWidth:460,className:'schedpop'}).setLatLng([lab.lat,lab.lon]).setContent(html).openOn(map);
+  setTimeout(()=>{if(schedChart){schedChart.destroy();schedChart=null}const cv=document.getElementById('schedCv');if(!cv)return;
+    const t0=Date.UTC(y,0,1),t1=Date.UTC(y,11,31,23);const line=[];for(let t=t0;t<=t1;t+=864e5)line.push({x:t,y:toD(regAt(lab.k,t))});
+    const ds=[{label:'Regulation schedule',data:line,borderColor:'#eab308',borderWidth:2,pointRadius:0}];
+    if(g){const pc=primary(g);ds.push({label:'Observed',data:g.series[pc].pts.filter((_,i)=>i%4===0).map(p=>({x:p[0],y:rawToElev(g,pc,p[1])})),borderColor:'#38bdf8',borderWidth:2,pointRadius:0})}
+    for(const [k,c] of [['y10','#ef4444'],['y100','#7e22ce']]){const v=fisD(k);if(v!=null)ds.push({label:SEV[k].l,data:[{x:t0,y:v},{x:t1,y:v}],borderColor:c,borderDash:[6,4],borderWidth:1.5,pointRadius:0})}
+    ds.push({label:'Today',type:'scatter',data:[{x:now,y:toD(today)}],backgroundColor:'#f8fafc',pointRadius:5});
+    schedChart=new Chart(cv,{type:'line',data:{datasets:ds},options:{responsive:true,maintainAspectRatio:false,animation:false,parsing:false,
+      plugins:{legend:{labels:{color:'#cbd5e1',boxWidth:10,font:{size:10}}},tooltip:{callbacks:{title:i=>new Date(i[0].parsed.x).toLocaleDateString('en-US',{month:'short',day:'numeric'})}}},
+      scales:{x:{type:'linear',min:t0,max:t1,ticks:{color:'#94a3b8',stepSize:30.44*864e5,callback:v=>new Date(v).toLocaleDateString('en-US',{month:'short',timeZone:'UTC'})},grid:{color:'#1f2937'}},
+        y:{title:{display:true,text:'ft '+D,color:'#94a3b8'},ticks:{color:'#94a3b8'},grid:{color:'#1f2937'}}}}});
+  },50);
+}
+
+/* ================= markers ================= */
+const markerLayer=L.layerGroup().addTo(map); let markers={};
+function kindOf(s){if(primary(s))return 'level';if(s.series['00060'])return 'flow';if(s.series['00045'])return 'rain';return null}
+const flowIcon=c=>L.divIcon({className:'',html:`<div style="width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-right:11px solid ${c};filter:drop-shadow(0 0 1px #000)"></div>`,iconSize:[11,12],iconAnchor:[14,6]});
+function buildMarkers(){
+  markerLayer.clearLayers();markers={};
+  for(const s of Object.values(sites)){if(s.lat==null)continue;
+    const ring=s.kind==='sfwmd'?'#facc15':'#fff';
+    if(primary(s)){const m=L.circleMarker([s.lat,s.lon],{radius:7,weight:s.kind==='sfwmd'?3:2,color:ring,fillOpacity:.95});m.on('click',()=>openGaugePopup(s.id));markers[s.id+'|e']={m,k:'elev',s}}
+    if(s.series['00060']){const m=L.marker([s.lat,s.lon],{icon:flowIcon('#0ea5e9')});m.on('click',()=>openGaugePopup(s.id));markers[s.id+'|q']={m,k:'flow',s}}
+    if(s.series['00045']){const m=L.marker([s.lat,s.lon],{icon:L.divIcon({className:'',html:'<div style="font-size:14px;line-height:14px">💧</div>',iconSize:[14,14],iconAnchor:[7,-4]})});m.on('click',()=>openDetail(s.id));markers[s.id+'|r']={m,k:'rain',s}}
+  }
+  renderMarkers();
+}
+function renderMarkers(){
+  const t=frames[cur]??Date.now();
+  for(const {m,k,s} of Object.values(markers)){
+    const src=s.kind==='sfwmd'?cfg.ly.sfwmd:cfg.ly.usgs;
+    const show=src&&((k==='elev'&&cfg.ly.level)||(k==='flow'&&cfg.ly.flow)||(k==='rain'&&cfg.ly.raing));
+    if(!show){markerLayer.removeLayer(m);continue}if(!markerLayer.hasLayer(m))markerLayer.addLayer(m);
+    let label='',tip='',dir='right',off=[8,0];
+    if(k==='elev'){const pc=primary(s),p=valueAt(s.series[pc].pts,t),v=p&&p[1];const st=statusOf(s,v,t);
+      m.setStyle({fillColor:v==null?'#334155':st.c});
+      const el=rawToElev(s,pc,v);label=v==null?'—':(el!=null?f2(el):f2(v)+' gh');
+      const tw=s.series.SFW_T&&valueAt(s.series.SFW_T.pts,t);
+      tip=`${esc(s.name)}<br>${PDESC[pc]}: ${f2(v)} ft${el!=null?` → <b>${f2(el)} ${cfg.datum}</b>`:''}${tw?`<br>Tailwater ${f2(rawToElev(s,'SFW_T',tw[1]))} ${cfg.datum}`:''}<br>${st?st.l:''}`;
+      if(tw&&cfg.ly.labels)label+=` / TW ${f2(rawToElev(s,'SFW_T',tw[1]))}`}
+    else if(k==='flow'){const p=valueAt(s.series['00060'].pts,t);label=p?Math.round(p[1]).toLocaleString()+' cfs':'— cfs';dir='left';off=[-16,0];tip=`${esc(s.name)}<br>Flow ${label}`;
+      m.setIcon(flowIcon(p?(p[1]>0?'#0ea5e9':'#64748b'):'#334155'))}
+    else{const p=s.series['00045'].pts,tot=sumBetween(p,t-864e5,t);label=f2(tot)+'″ 24h';dir='bottom';off=[0,10];tip=`${esc(s.name)}<br>Rain 24 h to this frame: ${f2(tot)} in`}
+    m.unbindTooltip();
+    if(cfg.ly.labels)m.bindTooltip(label,{permanent:true,direction:dir,offset:off,className:'lbl'+(k==='flow'?' lblq':'')});else m.bindTooltip(tip,{direction:'top'});
+  }
+}
+
+/* ================= gauge & flood tables ================= */
+function renderTables(){
+  const lv=Object.values(sites).filter(s=>primary(s)||s.series['00060']).sort((a,b)=>(b.lat||0)-(a.lat||0));
+  const now=Date.now();
+  $('#gSummary').textContent=`${lv.length} level/flow gauges · data through ${fmtT(Math.max(0,...lv.map(s=>{const pc=primary(s)||'00060';return s.series[pc].pts.at(-1)[0]})))}`;
+  $('#gTable').innerHTML=`<tr><th>Gauge (north → south)</th><th class="n">Now</th><th class="n">24h Δ</th></tr>`+lv.map(s=>{
+    const pc=primary(s)||'00060',pts=s.series[pc].pts,last=pts.at(-1),prev=valueAt(pts,last[0]-864e5);
+    const st=pc==='00060'?null:statusOf(s,last[1]);const el=pc==='00060'?null:rawToElev(s,pc,last[1]);
+    const d=prev?last[1]-prev[1]:null;
+    return `<tr class="click" data-id="${s.id}"><td><span class="dot" style="background:${st?st.c:'#0ea5e9'}"></span>${esc(s.name)}<div class="small">${PDESC[pc]}${st?' · '+st.l:''}</div></td>
+      <td class="n">${pc==='00060'?Math.round(last[1])+' cfs':f2(el??last[1])}</td><td class="n" style="color:${d>0?'#fca5a5':'#93c5fd'}">${d==null?'—':(d>0?'+':'')+(pc==='00060'?Math.round(d):d.toFixed(2))}</td></tr>`}).join('');
+  $('#gTable').querySelectorAll('tr.click').forEach(r=>r.onclick=()=>openDetail(r.dataset.id));
+  const ls=lv.filter(s=>primary(s));
+  const KS=['mean','reg','y10','y25','y50','y100','y500'];
+  $('#fTable').innerHTML=`<tr><th>Gauge</th><th class="n">Now</th><th class="n">Mean</th><th class="n">Reg</th><th class="n">10</th><th class="n">25*</th><th class="n">50</th><th class="n">100</th><th class="n">500</th><th>NWS</th></tr>`+ls.map(s=>{
+    const pc=primary(s),v=s.series[pc].pts.at(-1)[1],th=Object.fromEntries(thresholdsRaw(s));
+    const e=x=>x==null?'—':f2(rawToElev(s,pc,x)??x);
+    const n=nws[s.id];const st=statusOf(s,v);
+    return `<tr class="click" data-id="${s.id}"><td><span class="dot" style="background:${st.c}"></span>${esc(s.name)}<div class="small">${s.kind==='sfwmd'?'SFWMD '+esc(s.code):'USGS '+esc(s.no)} · offset ${siteOff(s).toFixed(2)}</div></td><td class="n"><b>${e(v)}</b></td>${KS.map(k=>`<td class="n">${e(th[k])}</td>`).join('')}<td>${n?['action','minor','moderate','major'].filter(k=>n[k]!=null).map(k=>k[0].toUpperCase()+n[k]).join(' '):''}</td></tr>`}).join('')+
+    `<tr><td colspan="10" class="small">All elevations shown in ${cfg.datum}, converted per gauge with its own datum offset. NWS action/minor/moderate/major stages are converted from gage height to the displayed elevation per gauge. NGVD29↔NAVD88 offsets come from NOAA VERTCON along the basin. River-reach flood elevations are FIS profile values – enter them per gauge in its panel.</td></tr>`;
+  $('#fTable').querySelectorAll('tr.click').forEach(r=>r.onclick=()=>openDetail(r.dataset.id));
+  renderLegend();
+}
+const RAIN_RAMP=[[0.1,'#0042ff'],[0.25,'#009cff'],[0.5,'#00fe9c'],[0.75,'#00fe00'],[1,'#90fe00'],[1.5,'#ccfe00'],[2,'#fed200'],[3,'#fe5a00'],[4,'#fe000c'],[5,'#fe007e'],[6,'#fe009c'],[8,'#fe00fe'],[10,'#fe28fe']];
+const DBZ_RAMP=[[5,'#04e9e7'],[10,'#019ff4'],[15,'#0300f4'],[20,'#02fd02'],[25,'#01c501'],[30,'#008e00'],[35,'#fdf802'],[40,'#e5bc00'],[45,'#fd9500'],[50,'#fd0000'],[55,'#d40000'],[60,'#bc0000'],[65,'#f800fd'],[70,'#9854c6']];
+function rampHtml(title,ramp,fmt){return `<div style="margin-top:6px"><b>${title}</b><div class="ramp">${ramp.map(([v,c])=>`<span style="background:${c}" title="${fmt(v)}"></span>`).join('')}</div><div class="rampl">${ramp.filter((_,i)=>i%2===0).map(([v])=>`<span>${fmt(v)}</span>`).join('')}</div></div>`}
+function renderLegend(){
+  const rt={'q2-n1p-900913':'Past 1 hr','q2-p24h-900913':'Past 24 hr','q2-p48h-900913':'Past 48 hr','q2-p72h-900913':'Past 72 hr'}[cfg.rainTot];
+  const extra=(rt?rampHtml(`Rainfall total – ${rt} (inches, MRMS)`,RAIN_RAMP,v=>v):'')+(cfg.ly.radar?rampHtml('Radar reflectivity (dBZ)',DBZ_RAMP,v=>v):'');
+  $('#legend').innerHTML=extra+(extra?'<hr style="border-color:#334155">':'')+'<b>Level status</b>'+[BELOW,...['mean','reg','action','minor','y10','moderate','y25','y50','major','y100','y500'].map(k=>SEV[k]),NOREF].map(x=>`<div><span class="dot" style="background:${x.c}"></span>${x.l}</div>`).join('')+
+   '<div style="margin-top:4px"><span class="dot" style="background:#334155;border:2px solid #facc15"></span>SFWMD station (yellow ring)</div><div><span style="color:#0ea5e9">◀</span> Flow, cfs (label on left)</div><div><span class="fslbl">100-yr</span> Lake flood stage</div><div>💧 Rain gauge</div>';
+}
+
+/* ================= detail panel ================= */
+let chart=null, detailId=null;
+function openDetail(id){
+  const s=sites[id];if(!s)return;detailId=id;$('#detail').classList.add('on');$('#dTitle').textContent=s.name+'  ('+s.no+')';
+  $('#dLink').href=s.kind==='sfwmd'?`https://insights.sfwmd.gov/#/structure/${encodeURIComponent(s.code)}`:`https://waterdata.usgs.gov/monitoring-location/${s.id}/`;
+  $('#dLink').textContent=s.kind==='sfwmd'?'DBHYDRO Insights':'USGS page';
+  if(s.kind==='sfwmd'&&!s.sfRT)sfRealtime(s).then(()=>{if(detailId===s.id){drawChart(s);drawSide(s);renderTables()}});
+  if(s.lat!=null&&!map.getBounds().contains([s.lat,s.lon]))map.panTo([s.lat,s.lon]);
+  drawChart(s);drawSide(s);
+}
+$('#dClose').onclick=()=>{$('#detail').classList.remove('on');detailId=null};
+const cursorPlugin={id:'cursor',afterDraw(c){const t=frames[cur];if(t==null)return;const x=c.scales.x.getPixelForValue(t);const a=c.chartArea;if(x<a.left||x>a.right)return;
+  const g=c.ctx;g.save();g.strokeStyle='#f8fafc';g.setLineDash([4,3]);g.beginPath();g.moveTo(x,a.top);g.lineTo(x,a.bottom);g.stroke();g.restore()}};
+function updateCursor(){if(chart)chart.draw()}
+function drawChart(s){
+  if(chart){chart.destroy();chart=null}
+  const pc=primary(s),ds=[];const t0=frames[0],t1=frames.at(-1)||Date.now();
+  if(pc){const pts=s.series[pc].pts;const toY=v=>rawToElev(s,pc,v)??v;
+    ds.push({label:(rawToElev(s,pc,pts[0][1])!=null?'Elevation ft '+cfg.datum:PDESC[pc]+' ft'),data:pts.map(p=>({x:p[0],y:toY(p[1])})),borderColor:'#38bdf8',pointRadius:0,borderWidth:2,yAxisID:'y'});
+    if(s.series.SFW_T)ds.push({label:'Tailwater ft '+cfg.datum,data:s.series.SFW_T.pts.map(p=>({x:p[0],y:rawToElev(s,'SFW_T',p[1])})),borderColor:'#f472b6',pointRadius:0,borderWidth:1.5,yAxisID:'y'});
+    const dfk=defaultsFor(s);const userReg=(TH[s.id]||{}).reg;
+    if(dfk&&(userReg==null||userReg==='')&&!(TH[s.id]||{}).noDefault){const o=siteOff(s);const line=[];for(let t=t0;t<=t1;t+=6*3600e3)line.push({x:t,y:conv(regAt(dfk.key,t),'NGVD29',cfg.datum,o)});
+      ds.push({label:'Regulation schedule',data:line,borderColor:SEV.reg.c,borderWidth:2,pointRadius:0,yAxisID:'y'})}
+    for(const [k,v] of thresholdsRaw(s).filter(([k])=>!(k==='reg'&&dfk&&(userReg==null||userReg==='')))) ds.push({label:SEV[k].l+' '+f2(toY(v)),data:[{x:t0,y:toY(v)},{x:t1,y:toY(v)}],borderColor:SEV[k].c,borderDash:[6,4],pointRadius:0,borderWidth:1.5,yAxisID:'y'});
+  }
+  if(s.series.GATE)ds.push({label:'Gate opening ft',data:s.series.GATE.pts.map(p=>({x:p[0],y:p[1]})),borderColor:'#fbbf24',borderDash:[2,2],pointRadius:0,borderWidth:1,yAxisID:'y3',hidden:true});
+  if(s.series['00060'])ds.push({label:'Discharge cfs',data:s.series['00060'].pts.map(p=>({x:p[0],y:p[1]})),borderColor:'#a3e635',pointRadius:0,borderWidth:1.5,yAxisID:pc?'y2':'y'});
+  if(s.series['00045']&&!pc&&!s.series['00060']){ // hourly rain bars
+    const h={};for(const [t,v] of s.series['00045'].pts){const k=Math.floor(t/36e5)*36e5;h[k]=(h[k]||0)+v}
+    ds.push({type:'bar',label:'Rain in/hr',data:Object.entries(h).map(([k,v])=>({x:+k,y:v})),backgroundColor:'#38bdf8',yAxisID:'y'})}
+  chart=new Chart($('#dcv'),{type:'line',data:{datasets:ds},plugins:[cursorPlugin],options:{responsive:true,maintainAspectRatio:false,animation:false,parsing:false,
+    interaction:{mode:'nearest',intersect:false},plugins:{legend:{labels:{color:'#cbd5e1',boxWidth:12,font:{size:10}}},tooltip:{callbacks:{title:i=>fmtT(i[0].parsed.x)}}},
+    scales:{x:{type:'linear',min:t0,max:t1,ticks:{color:'#94a3b8',callback:v=>fmtD(v),maxTicksLimit:8},grid:{color:'#1f2937'}},
+      y:{ticks:{color:'#94a3b8'},grid:{color:'#1f2937'}},y2:{display:!!(pc&&s.series['00060']),position:'right',ticks:{color:'#a3e635'},grid:{display:false}},y3:{display:false}},
+    onClick:(e,els,c)=>{const t=c.scales.x.getValueForPixel(e.x);let best=0;frames.forEach((f,i)=>{if(Math.abs(f-t)<Math.abs(frames[best]-t))best=i});stop();showFrame(best)}}});
+}
+function drawSide(s){
+  const pc=primary(s),t=TH[s.id]||{},df=defaultsFor(s),n=nws[s.id],fis=fisFor(s);
+  let h='';
+  if(pc){const last=s.series[pc].pts.at(-1);const el=rawToElev(s,pc,last[1]);const st=statusOf(s,last[1]);
+    h+=`<div><b style="font-size:18px">${f2(el??last[1])}</b> ft ${el!=null?cfg.datum:'(gage)'} <span class="chip" style="background:${st.c}">${st.l}</span></div><div class="small">${PDESC[pc]} ${f2(last[1])} · ${fmtT(last[0])}</div>`;
+    const th=thresholdsRaw(s);if(th.length){h+='<table style="margin-top:6px">'+th.map(([k,v])=>{const d=last[1]-v;return `<tr><td><span class="dot" style="background:${SEV[k].c}"></span>${SEV[k].l}</td><td class="n">${f2(rawToElev(s,pc,v)??v)}</td><td class="n" style="color:${d>=0?'#fca5a5':'#93c5fd'}">${d>=0?'+':''}${d.toFixed(2)}</td></tr>`}).join('')+'</table>'}
+    h+=`<h3>Reference levels for this gauge</h3><div class="grid2">
+      <span>Datum of values below</span><select data-k="datum">${['NAVD88','NGVD29','RAW'].map(d=>`<option ${ (t.datum||'NAVD88')===d?'selected':''}>${d}</option>`).join('')}</select>
+      <span>NGVD29 − NAVD88 offset <span class="small">(${s.sfOff!=null?'SFWMD site value '+s.sfOff:'FIS '+fisOffset(s)})</span></span><input data-k="off" value="${esc(t.off??'')}" placeholder="${siteOff(s).toFixed(2)}">
+      <span>Regulation max ${df?`<span class="small">(default ${df.reg} NGVD29)</span>`:''}</span><input data-k="reg" value="${esc(t.reg??'')}" placeholder="${df?df.reg:''}">
+      ${['y10','y25','y50','y100','y500'].map(k=>`<span>${SEV[k].l}</span><input data-k="${k}" value="${esc(t[k]??'')}" placeholder="${fis&&fis[k]!=null?fis[k]:''}">`).join('')}
+      <span>Long-term mean (raw)</span><input data-k="meanRaw" value="${t.meanRaw!=null?(+t.meanRaw).toFixed(2):''}">
+      ${PDATUM[pc]?'':`<span>Gage datum elev <span class="small">(USGS: ${s.alt??'?'} ${esc(s.vd||'')}${s.datumAssumed?' – assumed: no USGS datum, readings are elevations':''})</span></span><input data-k="gd" value="${esc(t.gd??'')}" placeholder="${s.alt??''}">
+      <span>Gage datum is</span><select data-k="gdd"><option value="">(USGS)</option>${['NGVD29','NAVD88'].map(d=>`<option ${t.gdd===d?'selected':''}>${d}</option>`).join('')}</select>`}
+      <span>Ignore built-in default</span><input type="checkbox" data-k="noDefault" ${t.noDefault?'checked':''}>
+      </div><div style="margin-top:6px;display:flex;gap:6px"><button id="dSave" class="pri">Save</button><button id="dMean">Compute mean</button></div>
+      ${fis?`<p class="small">Flood levels (placeholders, ft NAVD88): ${esc(fis.src)}. Typed values override them.</p>`:'<p class="small">No FIS lake value matched this gauge. For stream gauges, read the 1%-chance elevation off the FIS flood profile at this location and enter it.</p>'}
+      ${df?`<p class="small">Regulation default: ${esc(df.src)}.</p>`:''}
+      ${n?`<p class="small">NWS ${esc(n.lid)} stages (as reported by the gauge): ${['action','minor','moderate','major'].filter(k=>n[k]!=null).map(k=>k+' '+n[k]).join(', ')} · <a href="https://water.noaa.gov/gauges/${esc(n.lid)}" target="_blank" rel="noopener">forecast</a></p>`:''}`;
+  }
+  if(s.series['00060']){const q=s.series['00060'].pts;h+=`<h3>Flow</h3>${Math.round(q.at(-1)[1])} cfs now · window max ${Math.round(Math.max(...q.map(p=>p[1])))} cfs`}
+  if(s.series['00045']){const p=s.series['00045'].pts;h+=`<h3>Rain</h3>24 h: ${f2(sumBetween(p,Date.now()-864e5,Date.now()))} in · window: ${f2(sumBetween(p,0,Date.now()))} in`}
+  if(s.series.SFW_T){const tw=s.series.SFW_T.pts.at(-1);h+=`<h3>Tailwater</h3>${f2(rawToElev(s,'SFW_T',tw[1]))} ft ${cfg.datum} · ${fmtT(tw[0])}`}
+  if(s.series.GATE){const g=s.series.GATE.pts.at(-1);h+=`<h3>Gate opening</h3>${f2(g[1])} ft · ${fmtT(g[0])}`}
+  if(s.kind==='sfwmd')h+=`<p class="small">${esc(s.desc||'')}<br><a href="https://insights.sfwmd.gov/#/structure/${encodeURIComponent(s.code)}" target="_blank" rel="noopener">DBHYDRO Insights page</a> · SFWMD data are provisional, ft NAVD88, timestamps EST.</p>`;
+  else h+=`<p class="small"><a href="https://waterdata.usgs.gov/monitoring-location/${s.id}/" target="_blank" rel="noopener">USGS monitoring location page</a></p>`;
+  $('#dside').innerHTML=h;
+  const sv=$('#dSave');if(sv)sv.onclick=()=>{const o=Object.assign({},TH[s.id]||{});$('#dside').querySelectorAll('[data-k]').forEach(el=>{const k=el.dataset.k;o[k]=el.type==='checkbox'?el.checked:el.value.trim();if(o[k]==='')delete o[k]});
+    if(o.meanRaw!=null)o.meanRaw=+o.meanRaw;TH[s.id]=o;store.set('thresholds',TH);toast('Saved');refreshAll()};
+  if(s.kind==='sfwmd'&&$('#dMean'))$('#dMean').style.display='none';
+  const mb=$('#dMean');if(mb)mb.onclick=async()=>{mb.disabled=true;mb.textContent='Working…';try{const r=await dailyMean(s,pc);if(r){TH[s.id]=Object.assign(TH[s.id]||{},{meanRaw:r.mean});store.set('thresholds',TH);toast(`Mean ${r.mean.toFixed(2)} from ${r.n} days`);refreshAll()}else toast('No daily record found')}catch(e){toast('Failed: '+e.message)}};
+}
+function refreshAll(){renderMarkers();renderTables();if(detailId&&sites[detailId]){drawChart(sites[detailId]);drawSide(sites[detailId])}}
+
+/* ================= flood tab buttons ================= */
+$('#btnMeans').onclick=async()=>{const ls=Object.values(sites).filter(s=>primary(s)&&s.kind!=='sfwmd');toast(`Computing means for ${ls.length} gauges…`,4000);
+  await pool(ls,3,async s=>{const r=await dailyMean(s,primary(s));if(r){TH[s.id]=Object.assign(TH[s.id]||{},{meanRaw:r.mean});log(`Mean ${s.no}: ${r.mean.toFixed(2)} (${r.n} d)`,'ok')}});
+  store.set('thresholds',TH);refreshAll();toast('Means updated')};
+$('#btnExport').onclick=()=>{const box=$('#ioBox');box.style.display='block';box.value=JSON.stringify(TH,null,1);box.select();
+  try{navigator.clipboard.writeText(box.value);toast('Copied to clipboard')}catch(e){}
+  try{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([box.value],{type:'application/json'}));a.download='kissimmee-flood-levels.json';a.click()}catch(e){}};
+$('#btnImport').onclick=()=>{const box=$('#ioBox');if(box.style.display!=='block'||!box.value.trim()){box.style.display='block';box.value='';box.focus();return}
+  try{const o=JSON.parse(box.value);TH=Object.assign(TH,o);store.set('thresholds',TH);refreshAll();toast('Imported');box.style.display='none'}catch(e){toast('Invalid JSON')}};
+
+/* ================= layer toggles & settings ================= */
+function bindToggle(id,key,fn){const el=$('#ly-'+id);el.checked=!!cfg.ly[key];el.onchange=()=>{cfg.ly[key]=el.checked?1:0;saveCfg();fn(el.checked)}}
+const tog=(layer)=>on=>on?layer.addTo(map):map.removeLayer(layer);
+bindToggle('level','level',renderMarkers);bindToggle('usgs','usgs',renderMarkers);bindToggle('lakefs','lakefs',on=>on?lakeFsLayer.addTo(map):map.removeLayer(lakeFsLayer));bindToggle('sfwmd','sfwmd',on=>{if(on&&!Object.values(sites).some(s=>s.kind==='sfwmd'))loadAll(false);else renderMarkers()});bindToggle('flow','flow',renderMarkers);bindToggle('raing','raing',renderMarkers);bindToggle('labels','labels',renderMarkers);
+bindToggle('nws','nws',tog(nwsLayer));bindToggle('hydro','hydro',tog(hydroLayer));bindToggle('huc','huc',tog(hucLayer));bindToggle('struct','struct',tog(structLayer));
+bindToggle('dbhydro','dbhydro',tog(dbLayer));bindToggle('fema','fema',refreshFema);bindToggle('quad','quad',on=>{if(on){buildQuad();quadLayer.addTo(map)}else map.removeLayer(quadLayer)});
+bindToggle('radar','radar',on=>{buildRadar();renderLegend()});bindToggle('lakes','lakes',on=>on?lakeLayer.addTo(map):map.removeLayer(lakeLayer));
+$('#radarOp').value=cfg.radarOp;$('#radarOp').oninput=e=>{cfg.radarOp=+e.target.value;saveCfg();showFrame(cur)};
+$('#rainTot').value=cfg.rainTot;$('#rainTot').onchange=e=>{cfg.rainTot=e.target.value;saveCfg();setRainTot();renderLegend()};
+for(const [k,l] of [['nws',nwsLayer],['hydro',hydroLayer],['huc',hucLayer],['struct',structLayer],['dbhydro',dbLayer]])if(cfg.ly[k])l.addTo(map);
+if(cfg.ly.quad){buildQuad();quadLayer.addTo(map)}
+function fillSettings(){$('#setWin').value=cfg.win;$('#setStep').value=cfg.step;$('#setFrames').value=cfg.frames;$('#setRefresh').value=cfg.refresh;$('#setDatum').value=cfg.datum;$('#setOff').value=cfg.off;$('#setSrc').value=cfg.src;$('#setKey').value=cfg.key;$('#setBox').value=cfg.bbox.join(', ')}
+fillSettings();
+$('#setDatum').onchange=e=>{cfg.datum=e.target.value;saveCfg();refreshAll();buildLakeFS()};
+$('#setOff').onchange=e=>{cfg.off=+e.target.value;saveCfg();refreshAll()};
+$('#btnApply').onclick=()=>{cfg.win=+$('#setWin').value;cfg.step=+$('#setStep').value;cfg.frames=+$('#setFrames').value;cfg.refresh=+$('#setRefresh').value;cfg.src=$('#setSrc').value;cfg.key=$('#setKey').value.trim();
+  const b=$('#setBox').value.split(/[ ,]+/).map(Number).filter(isFinite);if(b.length===4)cfg.bbox=b;saveCfg();loadAll(true)};
+$('#btnReset').onclick=()=>{const keep=cfg.ly;cfg=Object.assign({},DEF,{ly:keep});saveCfg();fillSettings();loadAll(true)};
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#tabs button,.tab').forEach(x=>x.classList.remove('on'));b.classList.add('on');$('#t-'+b.dataset.t).classList.add('on')});
+$('#btnPanel').onclick=()=>$('#panel').classList.toggle('open');
+
+/* ================= load orchestration ================= */
+let refTimer=null, refLoaded=false;
+async function loadAll(full){
+  stop();buildFrames();setRainTot();
+  toast('Loading gauges…',6000);
+  const prev=sites;let usgsN=0;
+  try{await loadUSGS();usgsN=Object.values(sites).filter(s=>Object.keys(s.series).length).length}catch(e){log('USGS load failed: '+e.message,'err')}
+  if(!usgsN){const keep=Object.values(prev).filter(s=>s.id.startsWith('USGS-')&&Object.keys(s.series).length);
+    sites={};keep.forEach(s=>sites[s.id]=s);usgsN=keep.length;
+    status('usgs',keep.length?`USGS: refresh failed, showing previous data (${keep.length})`:'USGS: unavailable – see Log',!keep.length);
+    toast(keep.length?'USGS refresh failed – keeping previous data':'USGS data unavailable – see Log tab',5000)}
+  else status('usgs',`USGS ✓ ${usgsN} gauges`);
+  buildMarkers();renderTables();showFrame(frames.length-1);   // show USGS right away
+  if(cfg.ly.sfwmd){status('sfwmd','SFWMD loading…');try{await loadSFWMD_data();status('sfwmd',`SFWMD ✓ ${Object.values(sites).filter(s=>s.kind==='sfwmd').length} sites`)}catch(e){log('SFWMD DBHYDRO: '+e.message,'err');status('sfwmd','SFWMD: unavailable',true)}}
+  const n=Object.values(sites).filter(s=>kindOf(s)).length;log(`Gauges with data: ${n}`,'ok');
+  await loadNWS();
+  buildMarkers();renderTables();showFrame(frames.length-1);
+  if(!refLoaded||full){refLoaded=true;loadHUC()}
+  loadRain().catch(e=>log('Rain: '+e.message,'err'));
+  clearInterval(refTimer);if(+cfg.refresh>0)refTimer=setInterval(()=>{if(!playing&&cur===frames.length-1)loadAll(false)},cfg.refresh*60e3);
+}
+let _lz=map.getZoom();map.on('zoomend',()=>{const z=map.getZoom();if((z<MINOR_ZOOM)!==(_lz<MINOR_ZOOM)){buildLakeLabels();buildLakeFS()}_lz=z});
+renderLegend();buildLakeLabels();if(cfg.ly.lakes)lakeLayer.addTo(map);buildLakeFS();if(cfg.ly.lakefs)lakeFsLayer.addTo(map);loadFirmBFE().catch(e=>log('FEMA NFHL lake BFE: '+e.message,'err'));
+loadAll(true);
+</script>
+</body>
+</html>

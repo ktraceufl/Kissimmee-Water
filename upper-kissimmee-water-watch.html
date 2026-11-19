@@ -81,7 +81,7 @@ textarea{width:100%;height:120px;background:#0b1220;color:var(--ink);border:1px 
 </head>
 <body>
 <header id="top">
-  <div class="brand">Upper Kissimmee Water Watch<span id="srcStatus">Shingle · Boggy · Reedy → Lake Hatchineha</span></div>
+  <div class="brand">Upper Kissimmee Water Watch <a href="st-johns.html" style="font-weight:400;font-size:11px;color:#7dd3fc;text-decoration:none">· St. Johns map ↗</a><span id="srcStatus">Shingle · Boggy · Reedy → Lake Hatchineha</span></div>
   <div class="tl">
     <button id="btnPlay" title="Play / pause loop">▶</button>
     <input type="range" id="slider" min="0" max="0" value="0">
@@ -463,6 +463,16 @@ function thToRaw(s,pc,v,datum){if(v==null||v===''||!isFinite(+v))return null;v=+
 function lakeGauge(s){if(s.kind==='sfwmd')return !!(STRUCT_LAKE[s.code]&&s.series.SFW_H)||!!s.isLake;return /\bLAKE\b|\bLK\b/i.test(s.name)&&!/CREEK|CANAL|RIVER|TAILWATER/i.test(s.name)}
 function defaultsFor(s,t){if(!lakeGauge(s))return null;const k=schedKey(lakeText(s));if(!k)return null;const sc=REG_SCHED[k];
   return {key:k,reg:+regAt(k,t??frames[cur]??Date.now()).toFixed(2),src:`${sc.name} regulation schedule at ${sc.str} – ${sc.src}`}}
+// NWS flood stages are in gage-height feet. Shift them onto the series the map displays:
+// same series → 0; if the gauge also reports gage height (00065) → median(displayed − gage height);
+// otherwise only if NWS's own current reading matches ours (same reference) → 0; else don't use them.
+function nwsShift(s,pc){
+  if(s._ghs!==undefined)return s._ghs;let r=null;const n=nws[s.id];
+  if(pc==='00065')r=0;
+  else if(s.series['00065']){const P=s.series[pc].pts,d=[];for(let i=0;i<P.length;i+=Math.max(1,Math.floor(P.length/60))){const g=valueAt(s.series['00065'].pts,P[i][0]);if(g&&Math.abs(g[0]-P[i][0])<3600e3)d.push(P[i][1]-g[1])}
+    if(d.length){d.sort((a,b)=>a-b);r=+d[Math.floor(d.length/2)].toFixed(3)}}
+  else if(n&&n.obs!=null){const last=s.series[pc].pts.at(-1)[1];if(Math.abs(last-n.obs)<0.75)r=0}
+  s._ghs=r;return r}
 function thresholdsRaw(s,when){
   const pc=primary(s); if(!pc)return [];
   const t=TH[s.id]||{}, out=[], d=t.datum||'NAVD88';
@@ -473,7 +483,7 @@ function thresholdsRaw(s,when){
   for(const k of ['y10','y25','y50','y100','y500']){let v=null;
     if(t[k]!=null&&t[k]!=='')v=thToRaw(s,pc,t[k],d); else if(fis&&fis[k]!=null)v=thToRaw(s,pc,fis[k],'NAVD88');
     if(v!=null)out.push([k,v])}
-  const n=nws[s.id]; if(n)for(const k of ['action','minor','moderate','major'])if(n[k]!=null)out.push([k,n[k]]);
+  const n=nws[s.id]; if(n){const sh=nwsShift(s,pc);if(sh!=null)for(const k of ['action','minor','moderate','major'])if(n[k]!=null)out.push([k,n[k]+sh])}
   return out.sort((a,b)=>a[1]-b[1]);
 }
 function statusOf(s,v,when){
@@ -621,7 +631,9 @@ async function loadNWS(){
       const c=(d.flood&&d.flood.categories)||{};const th={};for(const k of ['action','minor','moderate','major']){const st=c[k]&&c[k].stage;if(st!=null&&st>-9000)th[k]=+st}
       let sid=d.usgsId?'USGS-'+d.usgsId:null;
       if(!sid||!sites[sid]){let best=null,bd=1e9;for(const s of Object.values(sites)){if(s.lat==null)continue;const dd=Math.hypot(s.lat-g.latitude,(s.lon-g.longitude)*0.88);if(dd<bd){bd=dd;best=s}}if(best&&bd<0.004)sid=best.id}
-      if(sid&&Object.keys(th).length)nws[sid]=Object.assign(th,{lid:g.lid});
+      if(/MHHW/i.test(g.name||'')||/MHHW/i.test(JSON.stringify(d.datums||'')))return; // tidal-datum duplicates
+      const ob=d.status&&d.status.observed;
+      if(sid&&Object.keys(th).length){nws[sid]=Object.assign(th,{lid:g.lid,obs:ob&&ob.primary>-900?+ob.primary:null});if(sites[sid])delete sites[sid]._ghs}
       const obs=g.status&&g.status.observed||{};
       const col={major:'#a21caf',moderate:'#dc2626',minor:'#f97316',action:'#f59e0b'}[(obs.floodCategory||'').toLowerCase()]||'#94a3b8';
       L.marker([g.latitude,g.longitude],{icon:L.divIcon({className:'',html:`<div style="width:14px;height:14px;background:${col};border:2px solid #fff;border-radius:2px"></div>`,iconSize:[14,14]})})
