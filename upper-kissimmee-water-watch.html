@@ -51,6 +51,7 @@ tr.click{cursor:pointer}tr.click:hover{background:#1e293b}
 #prog{height:3px;background:var(--acc);width:0;position:fixed;top:56px;left:0;z-index:1500;transition:width .2s}
 .lbl{background:rgba(15,23,42,.85)!important;color:#fff!important;border:0!important;box-shadow:none!important;font-size:11px!important;padding:1px 4px!important;border-radius:3px!important}
 .lbl:before{display:none}
+.nolbl .lbl{display:none!important}
 .lblq{color:#7dd3fc!important}
 .fslbl{background:#4c1d95;color:#fff;border:1px solid #c4b5fd;border-radius:4px;padding:1px 5px;font:600 11px system-ui;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.5)}
 .leaflet-popup-content{font-size:12px;max-width:300px}
@@ -634,6 +635,7 @@ async function loadNWS(){
       if(/MHHW/i.test(g.name||'')||/MHHW/i.test(JSON.stringify(d.datums||'')))return; // tidal-datum duplicates
       const ob=d.status&&d.status.observed;
       if(sid&&Object.keys(th).length){nws[sid]=Object.assign(th,{lid:g.lid,obs:ob&&ob.primary>-900?+ob.primary:null});if(sites[sid])delete sites[sid]._ghs}
+      if(!sid){let near=false;for(const s of Object.values(sites)){if(s.lat!=null&&Math.hypot(s.lat-g.latitude,(s.lon-g.longitude)*0.88)<0.06){near=true;break}}if(!near)return}
       const obs=g.status&&g.status.observed||{};
       const col={major:'#a21caf',moderate:'#dc2626',minor:'#f97316',action:'#f59e0b'}[(obs.floodCategory||'').toLowerCase()]||'#94a3b8';
       L.marker([g.latitude,g.longitude],{icon:L.divIcon({className:'',html:`<div style="width:14px;height:14px;background:${col};border:2px solid #fff;border-radius:2px"></div>`,iconSize:[14,14]})})
@@ -969,6 +971,8 @@ async function loadAll(full){
   loadRain().catch(e=>log('Rain: '+e.message,'err'));
   clearInterval(refTimer);if(+cfg.refresh>0)refTimer=setInterval(()=>{if(!playing&&cur===frames.length-1)loadAll(false)},cfg.refresh*60e3);
 }
+const LABEL_ZOOM=0; // value labels hidden below this zoom (keeps wide views readable)
+function lblZoom(){map.getContainer().classList.toggle('nolbl',map.getZoom()<LABEL_ZOOM)}map.on('zoomend',lblZoom);lblZoom();
 let _lz=map.getZoom();map.on('zoomend',()=>{const z=map.getZoom();if((z<MINOR_ZOOM)!==(_lz<MINOR_ZOOM)){buildLakeLabels();buildLakeFS()}_lz=z});
 renderLegend();buildLakeLabels();if(cfg.ly.lakes)lakeLayer.addTo(map);buildLakeFS();if(cfg.ly.lakefs)lakeFsLayer.addTo(map);loadFirmBFE().catch(e=>log('FEMA NFHL lake BFE: '+e.message,'err'));
 loadAll(true);
