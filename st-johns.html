@@ -209,11 +209,19 @@ function offAt(lat,lon){if(lat==null)return +cfg.off||1;let w=0,v=0;for(const [l
 function fisOffset(s){return +offAt(s.lat,s.lon).toFixed(3)}
 function siteOff(s){const t=TH[s.id]||{};if(t.off!=null&&t.off!=='')return +t.off;if(s.sfOff!=null)return s.sfOff;return fisOffset(s)}
 /* FEMA FIS lake stillwater elevations, ft NAVD88 [10%, 2%, 1%, 0.2%] (null = not published). 25-yr is interpolated (Gumbel) between 10 and 50-yr. */
-const FIS_LAKES = []; // St. Johns lakes are riverine in the FIS (flood profiles); lake BFEs come live from the effective FIRM (NFHL).
+const FIS_LAKES = [ // [10%, 2%, 1%, 0.2%] ft NAVD88
+ {re:/CRESCENT/i, v:[4.1,5.6,6.2,7.5], src:'Volusia Co. FIS 12127CV001D, Table 11 stillwater (Crescent Lake)'},
+ {re:/LAKE GEORGE|LK GEORGE/i, v:[4.0,null,5.9,6.9], src:'Volusia Co. FIS 12127CV002D, St. Johns River profile at Lake George'},
+ {re:/DEXTER|WOODRUFF/i, v:[3.9,null,5.9,7.2], src:'Volusia Co. FIS 12127CV002D, St. Johns River profile at Lake Dexter'},
+ {re:/BERESFORD/i, v:[3.9,null,6.1,7.5], src:'Volusia Co. FIS 12127CV002D, St. Johns River profile near SR 44'},
+ {re:/MONROE/i, v:[5.9,null,8.2,9.4], src:'Volusia Co. FIS 12127CV002D, St. Johns River profile at I-4 (Lake Monroe)'},
+ {re:/HARNEY/i, v:[8.6,null,9.5,12.3], src:'Volusia Co. FIS 12127CV002D, St. Johns River profile at Lake Harney'}];
+const GAUGE_FIS = {"02236000": {"y10": 3.9, "y50": null, "y100": 6.1, "y500": 7.5, "src": "Volusia Co. FIS 12127CV002D, St. Johns River profile at SR 44 (DeLand)"}, "02236125": {"y10": 4.0, "y50": null, "y100": 6.0, "y500": 7.2, "src": "Volusia Co. FIS 12127CV002D, St. Johns River profile at SR 40 (Astor)"}, "02234500": {"y10": 6.2, "y50": null, "y100": 8.3, "y500": 9.6, "src": "Volusia Co. FIS 12127CV002D, St. Johns River profile at SR 415"}, "02234000": {"y10": 9.1, "y50": null, "y100": 9.7, "y500": 12.4, "src": "Volusia Co. FIS 12127CV002D, St. Johns River profile above Lake Harney (read from profile, \u00b10.3 ft)"}};
 // Structure headwater pools: which lake each SFWMD structure's headwater gauge sits on
 const STRUCT_LAKE={S59:'EAST LAKE TOHOPEKALIGA',S61:'LAKE TOHOPEKALIGA',S62:'LAKE HART',S57:'LAKE MYRTLE',S60:'ALLIGATOR LAKE',S63:'LAKE GENTRY',S65:'LAKE KISSIMMEE'};
 function lakeText(s){if(s.kind==='sfwmd'&&STRUCT_LAKE[s.code])return STRUCT_LAKE[s.code];return (s.name||'')+' '+(s.desc||'')}
 function fisFor(s){
+  const gf=GAUGE_FIS[s.no];if(gf)return Object.assign({y25:null},gf);
   if(!lakeGauge(s))return null;
   const n=lakeText(s);
   for(const f of FIS_LAKES)if(f.re.test(n)){const [a,c,d,e]=f.v;let b=null;if(a!=null&&c!=null)b=+(a+0.574*(c-a)).toFixed(1);return {y10:a,y25:b,y50:c,y100:d,y500:e,src:f.src}}
@@ -502,7 +510,8 @@ async function loadUSGS(){
 // already an elevation (gage datum 0 ft NGVD29, readings ~70–95 ft). Treat those as NGVD29 elevations (flagged).
 function fixGageDatums(){for(const s of Object.values(sites)){if(!s.series['00065']||primary(s)!=='00065')continue;
   if(s.alt==null||s.alt===''||!isFinite(+s.alt)||!/NGVD|NAVD/i.test(s.vd||'')){const pts=s.series['00065'].pts;const med=pts[Math.floor(pts.length/2)][1];
-    if(med>20&&(s.alt==null||+s.alt===0||s.alt==='')){s.alt=0;s.vd='NGVD29';s.datumAssumed=true}}}}
+    if(med>20&&(s.alt==null||+s.alt===0||s.alt==='')){s.alt=0;s.vd='NGVD29';s.datumAssumed=true}
+    else if(s.lat>29.5&&(s.alt==null||s.alt==='')&&med<=20){s.alt=0;s.vd='NAVD88';s.datumAssumed=true;s.datumNote='tidal gauge – gage height is NAVD88 (checked against NWS Buckman/Dames Point)'}}}}
 /* ================= SFWMD DBHYDRO Insights (structures, lakes, canals) ================= */
 const SF_API='https://insightsdata.api.sfwmd.gov/v1/insights-data';
 const SF_WS=['SHINGLE CREEK','BOGGY CREEK','UPPER REEDY CREEK','LOWER REEDY CREEK','EAST LAKE TOHOPEKALIGA','LAKE TOHOPEKALIGA','LAKE CYPRESS','LAKE HATCHINEHA','ALLIGATOR LAKE','LAKE GENTRY','LAKE HART','LAKE MYRTLE','LAKE KISSIMMEE'];
