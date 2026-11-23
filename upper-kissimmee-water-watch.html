@@ -51,7 +51,7 @@ tr.click{cursor:pointer}tr.click:hover{background:#1e293b}
 #prog{height:3px;background:var(--acc);width:0;position:fixed;top:56px;left:0;z-index:1500;transition:width .2s}
 .lbl{background:rgba(15,23,42,.85)!important;color:#fff!important;border:0!important;box-shadow:none!important;font-size:11px!important;padding:1px 4px!important;border-radius:3px!important}
 .lbl:before{display:none}
-.nolbl .lbl{display:none!important}
+.nolbl .lbl{display:none!important}.z1 .nwsq,.z1 .fsm{display:none}
 .lblq{color:#7dd3fc!important}
 .fslbl{background:#4c1d95;color:#fff;border:1px solid #c4b5fd;border-radius:4px;padding:1px 5px;font:600 11px system-ui;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.5)}
 .leaflet-popup-content{font-size:12px;max-width:300px}
@@ -117,7 +117,7 @@ textarea{width:100%;height:120px;background:#0b1220;color:var(--ink);border:1px 
     <label class="row"><input type="checkbox" id="ly-raing" checked> Rain gauges (USGS)</label>
     <label class="row"><input type="checkbox" id="ly-nws"> NWS flood-forecast gauges</label>
     <label class="row"><input type="checkbox" id="ly-labels" checked> Value labels on map</label>
-    <label class="row"><input type="checkbox" id="ly-lakes" checked> Lake names (click for regulation schedule)</label>
+    <label class="row"><input type="checkbox" id="ly-lakes" checked> Lake names (click for 11-month level graph)</label>
     <h3>Weather</h3>
     <label class="row"><input type="checkbox" id="ly-radar" checked> Radar loop (NEXRAD composite)</label>
     <label class="row">Radar opacity <input type="range" id="radarOp" min="0.1" max="1" step="0.05" value="0.6"></label>
@@ -679,7 +679,7 @@ async function loadNWS(){
       if(!sid){let nr=false;for(const s of Object.values(sites)){if(s.lat!=null&&Math.hypot(s.lat-g.latitude,(s.lon-g.longitude)*0.88)<0.06){nr=true;break}}if(!nr)return}
       const obs=g.status&&g.status.observed||{};
       const col={major:'#a21caf',moderate:'#dc2626',minor:'#f97316',action:'#f59e0b'}[(obs.floodCategory||'').toLowerCase()]||'#94a3b8';
-      L.marker([g.latitude,g.longitude],{icon:L.divIcon({className:'',html:`<div style="width:14px;height:14px;background:${col};border:2px solid #fff;border-radius:2px"></div>`,iconSize:[14,14]})})
+      L.marker([g.latitude,g.longitude],{icon:L.divIcon({className:'',html:`<div class="nwsq" style="width:14px;height:14px;background:${col};border:2px solid #fff;border-radius:2px"></div>`,iconSize:[14,14]})})
         .bindPopup(`<b>NWS ${esc(g.lid)}</b> ${esc(g.name)}<br>Observed: ${esc(obs.primary)} ${esc(obs.primaryUnit||'')} (${esc(obs.floodCategory||'n/a')})<br>${Object.entries(th).map(([k,v])=>k+': '+v).join(' · ')||'No flood categories set'}<br><a href="https://water.noaa.gov/gauges/${esc(g.lid)}" target="_blank" rel="noopener">NWS hydrograph &amp; forecast</a>`).addTo(nwsLayer);
     });
   }catch(e){log('NWS NWPS: '+e.message,'err')}
@@ -755,7 +755,7 @@ function buildLakeFS(){lakeFsLayer.clearLayers();
   for(const lab of LAKE_LABELS){if(lab.minor&&map.getZoom()<MINOR_ZOOM)continue;const f=lakeFIS(lab),fr=firmBFE[lab.n],o=lakeOff(lab);
     const v=f&&f.y100!=null?f.y100:(fr&&fr.bfe!=null&&/NAVD/.test(fr.datum)?fr.bfe:null);if(v==null&&!fr)continue;
     const txt=v!=null?`100-yr ${f2(conv(v,'NAVD88',cfg.datum,o))}`:`Zone ${fr.zone}, no BFE`;
-    const m=L.marker([lab.lat,lab.lon],{icon:L.divIcon({className:'',html:`<div class="fslbl">${txt}</div>`,iconSize:null,iconAnchor:[0,-12]}),zIndexOffset:900});
+    const m=L.marker([lab.lat,lab.lon],{icon:L.divIcon({className:'fsm',html:`<div class="fslbl">${txt}</div>`,iconSize:null,iconAnchor:[0,-12]}),zIndexOffset:900});
     m.bindTooltip(`<b>${esc(lab.n)}</b> – flood stages, ft ${cfg.datum}<br>${f?`FIS: 10-yr ${f2(conv(f.y10,'NAVD88',cfg.datum,o))} · 50-yr ${f2(conv(f.y50,'NAVD88',cfg.datum,o))} · <b>100-yr ${f2(conv(f.y100,'NAVD88',cfg.datum,o))}</b> · 500-yr ${f2(conv(f.y500,'NAVD88',cfg.datum,o))}<br><span style="opacity:.7">${esc(f.src)}</span><br>`:'No FIS stillwater value<br>'}${fr?`FIRM (NFHL ${esc(fr.dfirm)}): Zone ${esc(fr.zone)}${fr.bfe!=null?`, static BFE ${f2(conv(fr.bfe,/NGVD/.test(fr.datum)?'NGVD29':'NAVD88',cfg.datum,o))}`:''}`:''}<br><span style="opacity:.7">Offset used ${o.toFixed(2)} ft</span>`,{direction:'top'});
     m.on('click',()=>openSchedule(lab));lakeFsLayer.addLayer(m)}}
 let schedChart=null, gChart=null;
@@ -884,7 +884,7 @@ function renderMarkers(){
   const t=frames[cur]??Date.now();const zt=zoomTier();
   for(const {m,k,s} of Object.values(markers)){
     const src=s.kind==='sfwmd'?cfg.ly.sfwmd:cfg.ly.usgs;
-    const show=src&&((k==='elev'&&cfg.ly.level)||(k==='flow'&&cfg.ly.flow)||(k==='rain'&&cfg.ly.raing))&&tierOf(s,t)<=zt;
+    const ti=tierOf(s,t);const show=src&&((k==='elev'&&cfg.ly.level)||(k==='flow'&&cfg.ly.flow&&zt>1)||(k==='rain'&&cfg.ly.raing&&zt>1))&&ti<=zt;
     if(!show){markerLayer.removeLayer(m);continue}if(!markerLayer.hasLayer(m))markerLayer.addLayer(m);
     let label='',tip='',dir='right',off=[8,0];
     if(k==='elev'){const pc=primary(s),p=valueAt(s.series[pc].pts,t),v=p&&p[1];const st=statusOf(s,v,t);
@@ -897,7 +897,8 @@ function renderMarkers(){
       m.setIcon(flowIcon(p?(p[1]>0?'#0ea5e9':'#64748b'):'#334155'))}
     else{const p=s.series['00045'].pts,tot=sumBetween(p,t-864e5,t);label=f2(tot)+'″ 24h';dir='bottom';off=[0,10];tip=`${esc(s.name)}<br>Rain 24 h to this frame: ${f2(tot)} in`}
     m.unbindTooltip();
-    if(cfg.ly.labels)m.bindTooltip(label,{permanent:true,direction:dir,offset:off,className:'lbl'+(k==='flow'?' lblq':'')});else m.bindTooltip(tip,{direction:'top'});
+    const lblOK=zt>1||map.getZoom()>=TIER_Z[1]-1||(k==='elev'&&(()=>{const pc=primary(s),p=valueAt(s.series[pc].pts,t),st=p&&statusOf(s,p[1],t);return st&&st.s>=SEV.minor.s})());
+    if(cfg.ly.labels&&lblOK)m.bindTooltip(label,{permanent:true,direction:dir,offset:off,className:'lbl'+(k==='flow'?' lblq':'')});else m.bindTooltip(tip,{direction:'top'});
   }
 }
 
@@ -931,7 +932,7 @@ function renderLegend(){
   const rt={'q2-n1p-900913':'Past 1 hr','q2-p24h-900913':'Past 24 hr','q2-p48h-900913':'Past 48 hr','q2-p72h-900913':'Past 72 hr'}[cfg.rainTot];
   const extra=(rt?rampHtml(`Rainfall total – ${rt} (inches, MRMS)`,RAIN_RAMP,v=>v):'')+(cfg.ly.radar?rampHtml('Radar reflectivity (dBZ)',DBZ_RAMP,v=>v):'');
   $('#legend').innerHTML=extra+(extra?'<hr style="border-color:#334155">':'')+'<b>Level status</b>'+[BELOW,...['mean','reg','action','minor','y10','moderate','y25','y50','major','y100','y500'].map(k=>SEV[k]),NOREF].map(x=>`<div><span class="dot" style="background:${x.c}"></span>${x.l}</div>`).join('')+
-   '<div style="margin-top:4px"><span class="dot" style="background:#334155;border:2px solid #facc15"></span>SFWMD station (yellow ring)</div><div><span style="color:#0ea5e9">◀</span> Flow, cfs (label on left)</div><div><span class="fslbl">100-yr</span> Lake flood stage</div><div>💧 Rain gauge</div>';
+   '<div style="margin-top:4px"><span class="dot" style="background:#334155;border:2px solid #facc15"></span>SFWMD station (yellow ring)</div><div><span class="dot" style="background:#334155;border:2px solid #c084fc"></span>NWS / county gauge (purple ring)</div><div class="small" style="opacity:.75">Zoom in for more gauges; gauges in flood always show</div><div><span style="color:#0ea5e9">◀</span> Flow, cfs (label on left)</div><div><span class="fslbl">100-yr</span> Lake flood stage</div><div>💧 Rain gauge</div>';
 }
 
 /* ================= detail panel ================= */
@@ -1059,7 +1060,7 @@ async function loadAll(full){
 }
 const LABEL_ZOOM=0; // value labels hidden below this zoom (keeps wide views readable)
 function lblZoom(){map.getContainer().classList.toggle('nolbl',map.getZoom()<LABEL_ZOOM)}map.on('zoomend',lblZoom);lblZoom();
-let _lz=map.getZoom(),_lt=zoomTier();map.on('zoomend',()=>{const z=map.getZoom();if((z<MINOR_ZOOM)!==(_lz<MINOR_ZOOM)){buildLakeLabels();buildLakeFS()}_lz=z;const zt=zoomTier();if(zt!==_lt){_lt=zt;renderMarkers()}});
+let _lz=map.getZoom(),_lt=zoomTier();map.on('zoomend',()=>{const z=map.getZoom();if((z<MINOR_ZOOM)!==(_lz<MINOR_ZOOM)){buildLakeLabels();buildLakeFS()}_lz=z;const zt=zoomTier();map.getContainer().classList.toggle('z1',zt===1);if(zt!==_lt||z===TIER_Z[1]-1||z===TIER_Z[1]-2){_lt=zt;renderMarkers()}});map.getContainer().classList.toggle('z1',zoomTier()===1);
 renderLegend();buildLakeLabels();if(cfg.ly.lakes)lakeLayer.addTo(map);buildLakeFS();if(cfg.ly.lakefs)lakeFsLayer.addTo(map);loadFirmBFE().catch(e=>log('FEMA NFHL lake BFE: '+e.message,'err'));
 loadAll(true);
 </script>
