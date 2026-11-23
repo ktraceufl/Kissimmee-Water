@@ -200,8 +200,10 @@ if(store.get('bboxv',0)<2){cfg.bbox=DEF.bbox.slice();cfg.ly.nws=1;store.set('bbo
 let TH = store.get('thresholds', {});   // per site id user thresholds
 const LEVEL_CODES = ['SFW_H','62614','63158','62615','63160','00065','NWS_ST'];
 const PDESC = {'SFW_H':'Stage (SFWMD, NAVD88)','SFW_T':'Tailwater (SFWMD, NAVD88)','62614':'Lake elev (NGVD29)','63158':'Water elev (NGVD29)','62615':'Lake elev (NAVD88)','63160':'Water elev (NAVD88)','00065':'Gage height','00060':'Discharge','00045':'Precipitation','GATE':'Gate opening','NWS_ST':'NWS stage'};
+const NWS_SITE_OK=(lat,lon)=>!(lon<-81.0&&lat<28.45)&&lon>-82.05; // keep Kissimmee / Peace basin gauges off this map // which NWS-only gauges belong on this map
 const NWS_AS_SITES=1; // 1 = show NWS gauges that have no USGS/SFWMD match as gauges of their own (county / district networks)
-const GAUGE_FIS={"02236000": {"y10": 3.9, "y50": null, "y100": 6.1, "y500": 7.5, "src": "Volusia Co. FIS 12127CV002D, St. Johns River profile at SR 44 (DeLand)"}, "02236125": {"y10": 4.0, "y50": null, "y100": 6.0, "y500": 7.2, "src": "Volusia Co. FIS 12127CV002D, St. Johns River profile at SR 40 (Astor)"}, "02234500": {"y10": 6.2, "y50": null, "y100": 8.3, "y500": 9.6, "src": "Volusia Co. FIS 12127CV002D, St. Johns River profile at SR 415"}, "02234000": {"y10": 9.1, "y50": null, "y100": 9.7, "y500": 12.4, "src": "Volusia Co. FIS 12127CV002D, St. Johns River profile above Lake Harney (read from profile, \u00b10.3 ft)"}}; // FIS profile values keyed by USGS site number, ft NAVD88
+const GAUGE_FIS={"02236000": {"y10": 3.9, "y50": null, "y100": 6.1, "y500": 7.5, "src": "Volusia Co. FIS 12127CV002D, St. Johns River profile at SR 44 (DeLand)"}, "02236125": {"y10": 4.0, "y50": null, "y100": 6.0, "y500": 7.2, "src": "Volusia Co. FIS 12127CV002D, St. Johns River profile at SR 40 (Astor)"}, "02234500": {"y10": 6.2, "y50": null, "y100": 8.3, "y500": 9.6, "src": "Volusia Co. FIS 12127CV002D, St. Johns River profile at SR 415"}, "02234000": {"y10": 9.1, "y50": null, "y100": 9.7, "y500": 12.4, "src": "Volusia Co. FIS 12127CV002D, St. Johns River profile above Lake Harney (read from profile, \u00b10.3 ft)"}};
+const LAKE_GAUGE={"Lake Washington": "USGS-02232000", "Lake Poinsett": "USGS-02232400", "Lake Harney": "USGS-02234000", "Puzzle Lake": "USGS-02234000", "Lake Monroe": "USGS-02234500", "Lake Beresford": "USGS-02236000", "Lake Woodruff": "USGS-02236000", "Lake Dexter": "USGS-02236125", "Lake George": "NWS-GTWF1", "Crescent Lake": "NWS-CELF1", "Lake Apopka": "USGS-02237700", "Rodman Reservoir": "NWS-RADF1", "Doctors Lake": "USGS-301124081395901"}; // lake name → gauge id to use where the lake has no gauge of its own (e.g. river gauge at the outlet) // FIS profile values keyed by USGS site number, ft NAVD88
 const PDATUM = {'SFW_H':'NAVD88','SFW_T':'NAVD88','62614':'NGVD29','63158':'NGVD29','62615':'NAVD88','63160':'NAVD88'};
 /* NGVD29 − NAVD88 offsets (ft) published in the effective FIS reports.
    Osceola 12097CV000A: county average +0.9.  Orange 12095CV000C Table 6: Shingle 0.91, Boggy 0.96, Reedy 0.88, Lake Hart 1.02.
@@ -620,11 +622,13 @@ async function loadNWS(){
       const ob=d.status&&d.status.observed;let navdAdj=null;
       if(sid&&mhhw){if(navd==null||navd===0)sid=null;else if(nws[sid])return;else{navdAdj=navd;for(const k in th)th[k]=+(th[k]+navd).toFixed(2)}}
       if(sid&&Object.keys(th).length){nws[sid]=Object.assign(th,{lid:g.lid,navd:navdAdj,obs:ob&&ob.primary>-900?+ob.primary+(navdAdj||0):null});if(sites[sid])delete sites[sid]._ghs}
-      if(!sid&&NWS_AS_SITES&&ob&&ob.primary>-900){
+      if(!sid&&NWS_AS_SITES&&NWS_SITE_OK(g.latitude,g.longitude)&&ob&&ob.primary>-900){
         try{const so=await getJSON(`https://api.water.noaa.gov/nwps/v1/gauges/${g.lid}/stageflow/observed`,{timeout:30000});
           const pts=(so.data||[]).filter(p=>p.primary>-900).map(p=>[Date.parse(p.validTime),+p.primary]).filter(p=>isFinite(p[0]));
-          if(pts.length>2){const id='NWS-'+g.lid;const st=getSite(id,{name:(g.name||g.lid).replace(/\s*\(in MHHW\)/i,'').toUpperCase(),lat:g.latitude,lon:g.longitude,kind:'nws'});st.no=g.lid;
-            if(mhhw){if(navd!=null&&navd!==0){st.alt=navd;st.vd='NAVD88';st.datumNote=`NWS stage is in MHHW; MHHW→NAVD88 ${navd>0?'+':''}${navd} ft per NWS`}}
+          if(pts.length>2){const id='NWS-'+g.lid;const st=getSite(id,{name:(g.name||g.lid).replace(/\s*\(in [^)]*\)/i,'').toUpperCase(),lat:g.latitude,lon:g.longitude,kind:'nws'});st.no=g.lid;
+            const nd=/\(in (NAVD ?88|NGVD ?29|NGVD)\)/i.exec(g.name||'');
+            if(nd){st.alt=0;st.vd=/NAVD/i.test(nd[1])?'NAVD88':'NGVD29';st.datumNote='NWS stage is '+st.vd}
+            else if(mhhw){if(navd!=null&&navd!==0){st.alt=navd;st.vd='NAVD88';st.datumNote=`NWS stage is in MHHW; MHHW→NAVD88 ${navd>0?'+':''}${navd} ft per NWS`}}
             else if(dngv&&+dngv.value!==0){st.alt=+dngv.value;st.vd='NGVD29';st.datumNote='gage datum '+dngv.value+' ft NGVD29 per NWS'}
             else if(dnav&&dvs.length===1&&navd===0){st.alt=0;st.vd='NAVD88';st.datumNote='NWS stage is NAVD88'}
             else if(dnav&&dvs.some(x=>/STND/i.test(x.abbrev||''))){st.alt=navd;st.vd='NAVD88';st.datumNote=`NAVD88 = stage ${navd>=0?'+':''}${navd} ft per NWS`}
@@ -748,10 +752,11 @@ function openGaugePopup(id){
   },50);
 }
 function lakeGaugeFor(lab){
+  const m=LAKE_GAUGE[lab.n];if(m&&sites[m]&&primary(sites[m]))return sites[m];
   const a=lakeSites(lab);if(a.length)return a[0];
   const key=(lab.fis.split(' ').filter(w=>w.length>3&&!/LAKE/.test(w))[0]||'@@');const re=new RegExp('\\b'+key+'\\b','i');
   let best=null,bd=1e9;for(const s of Object.values(sites)){if(!primary(s)||s.lat==null)continue;const d=Math.hypot(s.lat-lab.lat,(s.lon-lab.lon)*0.88);
-    const named=re.test(lakeText(s));if(!(named&&d<0.15)&&!(lakeGauge(s)&&d<0.03))continue;const sc=d-(named&&lakeGauge(s)?1:named?0.5:0);if(sc<bd){bd=sc;best=s}}
+    const named=re.test(lakeText(s));if(!(named&&lakeGauge(s)&&d<0.15)&&!(lakeGauge(s)&&d<0.03))continue;const sc=d-(named&&lakeGauge(s)?1:named?0.5:0);if(sc<bd){bd=sc;best=s}}
   return best}
 async function lakeHistory(g){ // ~11 months of daily-mean stage, in the gauge's raw reading space
   if(g._hist&&Date.now()-g._histT<30*60e3)return g._hist;const pc=primary(g),start=Date.now()-335*864e5;let pts=[],note='';
@@ -778,10 +783,12 @@ function openSchedule(lab){
   // reference levels (display datum)
   const refs=[];if(g)for(const [k,v] of thresholdsRaw(g,now)){if(k==='reg')continue;const y=rawToElev(g,pc,v);if(y!=null)refs.push([k,y])}
   const lf=lakeFIS(lab),fr=firmBFE[lab.n];let src=g?(fisFor(g)||{}).src:'';
+  if(lf){for(let i=refs.length-1;i>=0;i--)if(/^y\d/.test(refs[i][0]))refs.splice(i,1)}
   if(!refs.some(r=>r[0]==='y100')){
     if(lf){for(const k of ['y10','y25','y50','y100','y500'])if(lf[k]!=null)refs.push([k,navD(lf[k])]);src=lf.src}
     else if(fr&&fr.bfe!=null){refs.push(['y100',conv(fr.bfe,/NGVD/.test(fr.datum)?'NGVD29':'NAVD88',D,off)]);src=`FEMA effective FIRM (NFHL ${fr.dfirm}): Zone ${fr.zone} static BFE ${fr.bfe} ${fr.datum}`}}
   refs.sort((a,b)=>a[1]-b[1]);
+  const proxy=g&&!lakeGauge(g);
   const gName=g?(g.kind==='sfwmd'?'SFWMD '+g.code:g.kind==='nws'?'NWS '+g.no:'USGS '+g.no)+' – '+g.name:'';
   const html=`<b style="font-size:14px">${esc(lab.n)}</b><div class="small">${sc?`${esc(sc.name)} · controlled at ${esc(sc.str)}`:'Not a regulated pool – no regulation schedule'}</div>
    <table style="margin:6px 0">
@@ -790,7 +797,7 @@ function openSchedule(lab){
    ${refs.map(([k,y])=>`<tr><td><span class="dot" style="background:${SEV[k].c}"></span>${SEV[k].l}</td><td class="n">${f2(y)}</td><td class="small">${el!=null?(el-y>=0?'+':'')+(el-y).toFixed(2)+' ft':''}</td></tr>`).join('')}
    </table>
    ${g?`<div style="height:240px"><canvas id="schedCv"></canvas></div><div id="schedNote" class="small" style="margin-top:4px">Loading 11 months of daily stage…</div>`:''}
-   <div class="small" style="margin-top:4px">${g?'Gauge: '+esc(gName)+'. ':''}${sc?'Schedule: '+esc(sc.src)+'. ':''}${src?'Flood levels: '+esc(src)+'. ':''}Elevations ft ${D}; NGVD29↔NAVD88 offset ${off.toFixed(2)} ft.</div>`;
+   <div class="small" style="margin-top:4px">${g?'Gauge: '+esc(gName)+(proxy?' (no gauge in the lake itself – this is the nearest river gauge at the lake)':'')+'. ':''}${sc?'Schedule: '+esc(sc.src)+'. ':''}${src?'Flood levels: '+esc(src)+'. ':''}Elevations ft ${D}; NGVD29↔NAVD88 offset ${off.toFixed(2)} ft.</div>`;
   L.popup({maxWidth:480,className:'schedpop'}).setLatLng([lab.lat,lab.lon]).setContent(html).openOn(map);
   if(!g)return;
   lakeHistory(g).then(h=>{if(schedChart){schedChart.destroy();schedChart=null}const cv=document.getElementById('schedCv');if(!cv)return;
