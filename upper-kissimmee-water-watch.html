@@ -359,15 +359,24 @@ function sumBetween(pts,a,b){let s=0;for(const p of pts){if(p[0]>a&&p[0]<=b)s+=p
 const map = L.map('map',{zoomControl:true,preferCanvas:true}).fitBounds([[cfg.bbox[1],cfg.bbox[0]],[cfg.bbox[3],cfg.bbox[2]]]);
 map.createPane('radar').style.zIndex=350; map.createPane('ref').style.zIndex=380; map.createPane('fema').style.zIndex=360;
 const tnm = n=>`https://basemap.nationalmap.gov/arcgis/rest/services/${n}/MapServer/tile/{z}/{y}/{x}`;
+// Tile layer that retries a failed tile from backup sources (cached tile → live export of the same service → Esri)
+const W=20037508.342789244;
+const tileBox=c=>{const z=2*W/Math.pow(2,c.z);return [-W+c.x*z,W-(c.y+1)*z,-W+(c.x+1)*z,W-c.y*z].map(v=>v.toFixed(2)).join(',')};
+const tnmExport=n=>c=>`https://basemap.nationalmap.gov/arcgis/rest/services/${n}/MapServer/export?bbox=${tileBox(c)}&bboxSR=3857&imageSR=3857&size=256,256&format=jpg&transparent=false&f=image`;
+const esriTile=n=>c=>`https://server.arcgisonline.com/ArcGIS/rest/services/${n}/MapServer/tile/${c.z}/${c.y}/${c.x}`;
+const FTile=L.TileLayer.extend({
+  createTile(c,done){const t=L.TileLayer.prototype.createTile.call(this,c,done);t._c=c;t._k=0;return t},
+  _tileOnError(done,t,e){const f=this.options.fallbacks||[];if(t._k<f.length){t.src=f[t._k++](t._c);return}L.TileLayer.prototype._tileOnError.call(this,done,t,e)}});
+const usgsBase=(n,esri)=>()=>new FTile(tnm(n),{maxNativeZoom:16,maxZoom:19,attribution:'USGS The National Map',fallbacks:[tnmExport(n),esriTile(esri)]});
 const BASES = {
- usgstopo:{n:'USGS Topo (The National Map)',l:()=>L.tileLayer(tnm('USGSTopo'),{maxNativeZoom:16,maxZoom:19,attribution:'USGS The National Map'})},
+ usgstopo:{n:'USGS Topo (The National Map)',l:usgsBase('USGSTopo','World_Topo_Map')},
  quadscan:{n:'USGS 7.5′ quad scans (Esri USA Topo)',l:()=>L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/USA_Topo_Maps/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:15,maxZoom:19,attribution:'Esri, USGS'})},
- imgtopo:{n:'USGS Imagery + Topo',l:()=>L.tileLayer(tnm('USGSImageryTopo'),{maxNativeZoom:16,maxZoom:19,attribution:'USGS'})},
- img:{n:'USGS Imagery',l:()=>L.tileLayer(tnm('USGSImageryOnly'),{maxNativeZoom:16,maxZoom:19,attribution:'USGS'})},
- relief:{n:'USGS Shaded Relief',l:()=>L.tileLayer(tnm('USGSShadedReliefOnly'),{maxNativeZoom:16,maxZoom:19,attribution:'USGS'})},
+ imgtopo:{n:'USGS Imagery + Topo',l:usgsBase('USGSImageryTopo','World_Imagery')},
+ img:{n:'USGS Imagery',l:usgsBase('USGSImageryOnly','World_Imagery')},
+ relief:{n:'USGS Shaded Relief',l:usgsBase('USGSShadedReliefOnly','Elevation/World_Hillshade')},
  esritopo:{n:'Esri World Topo',l:()=>L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Esri'})},
  osm:{n:'OpenStreetMap',l:()=>L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'})},
- dark:{n:'Dark (CARTO)',l:()=>L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19,attribution:'© OSM © CARTO'})}};
+ dark:{n:'Dark gray (Esri)',l:()=>L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:16,maxZoom:19,attribution:'Esri'})}};
 let baseLayer=null;
 function setBase(k){if(baseLayer)map.removeLayer(baseLayer);baseLayer=(BASES[k]||BASES.usgstopo).l().addTo(map);cfg.base=k;saveCfg()}
 $('#baseList').innerHTML=Object.entries(BASES).map(([k,b])=>`<label class="row"><input type="radio" name="base" value="${k}" ${k===cfg.base?'checked':''}> ${b.n}</label>`).join('');
